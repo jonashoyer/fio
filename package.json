@@ -14,7 +14,6 @@
     "format:check": "oxfmt --check ."
   },
   "dependencies": {
-    "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo-google-fonts/inter": "~0.4.2",
     "@expo/config": "~57.0.9",
     "@gorhom/bottom-sheet": "^5.2.9",
@@ -57,7 +56,6 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.2",
-    "react-native-webrtc": "^124.0.8",
     "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1",
     "tailwind-merge": "^3.4.0",

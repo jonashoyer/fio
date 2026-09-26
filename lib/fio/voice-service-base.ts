@@ -6,7 +6,7 @@ import type {
 } from './types';
 
 export const VOICE_UNAVAILABLE_MESSAGE =
-  'Native voice needs the private iOS development build and a configured Fio voice broker. You can keep writing and save editable artifacts.';
+  'Voice is not connected in Expo Go. You can keep writing and save editable artifacts.';
 
 export class UnconfiguredVoiceService implements VoiceService {
   readonly isConfigured = false;

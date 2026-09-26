@@ -1,13 +1,12 @@
-# Fio native voice foundation
+# Fio Expo Go foundation
 
-Fio is a no-login React Native/Expo writing assistant foundation. The manual writing, artifact, attachment, and same-installation history flow remains the reliable fallback. This is **not production-ready**.
+Fio is a no-login React Native/Expo writing assistant foundation. The manual writing, artifact, attachment, and same-installation history flow is the runnable path today. This is **not production-ready**.
 
 ## Run and check
 
 ```sh
 npm install
-npm run ios
-npm run android
+npx expo start
 npm run lint
 npm run lint:css
 npm run format:check
@@ -15,35 +14,43 @@ npm run expo-check
 npm run export:web
 ```
 
-Routes: `/` for the conversation and `/history` for saved local threads.
+Routes: `/` for the conversation and `/history` for saved local threads. The iPhone route for this pass is the Expo Go QR shown by the preview.
 
-## Implemented
+## Implemented and runnable
 
 - New empty conversation on launch; non-empty turns create and update local history.
 - Separate autosaved reference context, durable native photo references, and no OCR/image-understanding claim.
 - Manual message/reply/notes/document artifacts with stable IDs, selection, autosave, one-step edit Undo, and exact Copy.
-- `You said` and `Fio said` turns, with completed voice transcripts saved locally when received.
-- Native-only WebRTC audio/data-channel transport using `react-native-webrtc`.
-- Microphone capture starts only after **Talk to Fio**, after broker/session validation.
-- Real transport states only: connecting, listening, processing, speaking, stopped, and error. Stop listening, Stop Fio, and Mute/Unmute act on the native transport.
-- SecureStore installation credential storage. Registration saves `device_id` and the one-time `credential` before any authenticated request.
-- `Authorization: Bearer` installation authentication and `X-Fio-Sync-Token` carry-forward, including registration.
-- Typed client methods for the supplied thread, operation, artifact, tool, deletion, and voice-session routes.
-- Strict 128 KiB UTF-8 text checks, mapped authorization/capacity/cancellation/idempotency errors, and a reusable one-in-flight FIFO queue that preserves an unknown-outcome operation’s original ID/body for retry.
-- Provider data-channel handling for the five backend artifact tools and local `artifact_select`. Tool targets must match the current thread; results return only after the backend reports persisted `data`.
-- Read aloud and Copy capture the exact selected artifact snapshot. The read snapshot is visible and remains frozen while a long request would run.
+- Truthful unavailable behavior for **Talk to Fio** and **Read aloud**; no microphone, speech playback, browser dictation, or simulated answer starts on launch.
+- SecureStore installation credential storage and typed API groundwork for the supplied device, thread, operation, artifact, tool, deletion, and voice-session routes.
+- Strict 128 KiB UTF-8 text checks, mapped authorization/capacity/cancellation/idempotency errors, and a reusable one-in-flight FIFO queue.
+- Read aloud and Copy capture the exact selected artifact snapshot. Read aloud does not send or speak it while voice is unavailable.
 
-## Required private configuration
+## Expo Go voice feasibility result
 
-The native client reads only:
+Expo SDK 57 recommends `react-native-webview` 13.16.1 and documents it as included in Expo Go. Its iOS WKWebView supports WebRTC browser APIs on a secure HTTPS document origin, and React Native WebView exposes iOS media-capture permission handling.
+
+That is not enough to ship a secure voice bridge from this client alone:
+
+- Inline `source={{ html }}` content does not provide the trusted HTTPS origin needed for reliable microphone `getUserMedia` in WKWebView.
+- A genuine bridge therefore needs a reviewed HTTPS page hosted by the trusted Fio API origin, plus its navigation/CSP/CORS rules and a narrow native-message protocol.
+- This repository has no such hosted bridge page, and this pass does not authorize deploying one.
+- The live broker response fields, six installed tool schemas, provider event shapes, and read-aloud request event remain unconfirmed.
+- Passing the installation credential or arbitrary instructions/tools into an unrelated page would violate the trust boundary.
+
+For those reasons no WebView voice bridge was added and no speech is simulated. The default native entrypoint deliberately has no `react-native-webrtc` import, so Expo Go can load the manual app. A physical iPhone has not proven microphone capture, Azure WebRTC, data-channel tools, or playback.
+
+## Required private configuration for future broker work
+
+The API client reads only:
 
 ```sh
 EXPO_PUBLIC_FIO_API_BASE_URL=https://your-private-fio-api.example
 ```
 
-This must be a public **URL**, not a secret. Long-lived Azure and Redis credentials stay on the Next.js server. Do not add them to Expo environment variables or the client bundle.
+This is a public **URL**, not a secret. Long-lived Azure and Redis credentials stay on the Next.js server. Do not add them to Expo environment variables or the client bundle.
 
-The mobile broker parser currently fails closed unless `POST /api/fio/voice/sessions` returns confirmed `temporary_credential`, `webrtc_call_url`, and a `tools` string array containing exactly these trusted server-installed capabilities:
+The existing fail-closed parser expects the backend owner to confirm the voice-session response and exactly these trusted server-installed capabilities:
 
 ```text
 artifact_list
@@ -54,24 +61,11 @@ artifact_undo
 artifact_select
 ```
 
-Those response field names were not available in this repository’s backend handoff and must be confirmed with the backend owner before claiming a live integration. The client does not send session instructions, tool schemas, or an arbitrary model prompt.
-
-The supplied thread API does not define the JSON shape of `initial`/`change`, remote thread-ID mapping, session tool argument schemas, or the trusted read-aloud request event. Therefore local manual writes are not yet mirrored to the remote FIFO, a new unsaved voice thread cannot safely become a remote tool target, and Read aloud deliberately does not send text to Azure. These are explicit integration blockers, not simulated behavior.
-
-## Native iOS route
-
-`react-native-webrtc` is a custom native module and is **not testable proof in Expo Go or the browser preview**.
-
-- Bilt route: **Deploy & Share → Test on iPhone**, then run its fresh five-minute install command on a Mac with Xcode and a USB-connected iPhone.
-- Exported/local route: `npm run ios` (`expo run:ios`) on macOS with Xcode.
-- Current fallback iOS bundle identifier: `me.bilt.fio`; Bilt may override it through `BILT_IOS_BUNDLE_ID`.
-- The app includes `expo-dev-client`, `expo-secure-store`, the WebRTC config plugin, and an iOS microphone usage description.
-
-No native build was produced in this Linux sandbox. Permission denial, audio routing, interruption behavior, WebRTC transport, Azure media, and exact read-back must be tested on that private native build.
+The client does not install session instructions, tool schemas, or an arbitrary model prompt. The supplied thread API also does not yet confirm the JSON shape of `initial`/`change`, remote thread-ID mapping, session tool arguments, or trusted read-aloud event.
 
 ## Local persistence limits
 
-Local threads remain readable when the API or voice broker is unavailable. Data stays in this installation and can be lost if app/site data is removed. Cross-device synchronization and reinstall recovery are out of scope. A canceled voice session ignores later provider events and never reports stale tool success.
+Local threads remain readable when the API or voice broker is unavailable. Data stays in this installation and can be lost if app/site data is removed. Cross-device synchronization and reinstall recovery are out of scope.
 
 ## Backend portability
 
