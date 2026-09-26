@@ -25,6 +25,7 @@ import { useRouter } from 'expo-router';
 
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { FioBird } from '@/components/FioBird';
+import { LinearGradient } from '@/components/ui/primitives/LinearGradient';
 import { attachmentService } from '@/lib/fio/attachment-service';
 import { VOICE_UNAVAILABLE_MESSAGE, voiceService } from '@/lib/fio/services';
 import {
@@ -247,60 +248,85 @@ export default function ConversationScreen() {
       keyboardVerticalOffset={88}
     >
       <View className="mx-auto w-full max-w-3xl flex-1">
-        <View className="flex-row items-center justify-between px-5 py-3">
-          <View className="flex-row items-center gap-3">
-            <FioBird size={24} />
-            <Typography className="text-foreground text-xl font-semibold">Fio</Typography>
-          </View>
-          <View className="flex-row gap-2">
+        {!active ? (
+          <LinearGradient
+            colors={['#F8F7F4', '#F4B58E', '#9DD9D0', '#F8F7F4']}
+            locations={[0, 0.2, 0.76, 1]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            className="relative h-[185px] overflow-hidden rounded-b-[28px]"
+          >
+            <View className="bg-background absolute top-[18px] left-[18px] h-[75px] w-[75px] items-center justify-center rounded-full">
+              <FioBird size={50} />
+            </View>
+            <View className="absolute top-6 left-[109px] gap-0.5">
+              <Typography className="text-foreground text-2xl font-semibold">Fio</Typography>
+              <Typography className="text-foreground text-sm">AI writing companion</Typography>
+            </View>
             <Button
               isIconOnly
+              size="md"
               variant="tertiary"
-              onPress={beginNew}
-              accessibilityLabel="New conversation"
-            >
-              <Plus color={accent} size={22} />
-            </Button>
-            <Button
-              isIconOnly
-              variant="tertiary"
+              className="absolute top-[18px] right-[18px]"
               onPress={() => router.push('/history')}
               accessibilityLabel="History"
             >
               <History color={accent} size={21} />
             </Button>
+            <View className="absolute right-[18px] bottom-[18px] left-[18px] flex-row items-center gap-2">
+              <Button size="lg" onPress={() => void talk()} accessibilityLabel="Talk to Fio">
+                <Mic color="#FFFFFF" size={21} />
+                <Button.Label>Talk to Fio</Button.Label>
+              </Button>
+              <Button
+                size="lg"
+                variant="tertiary"
+                onPress={() => setNotice('Type in the writing field below.')}
+                accessibilityLabel="Type instead"
+              >
+                <Button.Label>Type instead</Button.Label>
+              </Button>
+            </View>
+          </LinearGradient>
+        ) : (
+          <View className="flex-row items-center justify-between px-5 py-3">
+            <View className="flex-row items-center gap-3">
+              <FioBird size={24} />
+              <View>
+                <Typography className="text-foreground text-xl font-semibold">Fio</Typography>
+                <Typography className="text-muted text-xs">AI writing companion</Typography>
+              </View>
+            </View>
+            <View className="flex-row gap-2">
+              <Button
+                isIconOnly
+                size="md"
+                variant="tertiary"
+                onPress={beginNew}
+                accessibilityLabel="New conversation"
+              >
+                <Plus color={accent} size={22} />
+              </Button>
+              <Button
+                isIconOnly
+                size="md"
+                variant="tertiary"
+                onPress={() => router.push('/history')}
+                accessibilityLabel="History"
+              >
+                <History color={accent} size={21} />
+              </Button>
+            </View>
           </View>
-        </View>
+        )}
 
         <ScrollView
           className="flex-1"
-          contentContainerClassName="grow gap-5 px-5 pb-6"
+          contentContainerClassName="grow gap-5 px-5 pb-6 pt-5"
           keyboardShouldPersistTaps="handled"
         >
-          {!active ? (
-            <View className="flex-1 items-start justify-center gap-5 py-12">
-              <FioBird size={48} />
-              <Typography className="text-foreground max-w-lg text-3xl leading-10 font-semibold">
-                What are you writing?
-              </Typography>
-              <View className="flex-row flex-wrap gap-2">
-                <Button size="lg" onPress={() => void talk()} accessibilityLabel="Talk to Fio">
-                  <Mic color="#FFFFFF" size={21} />
-                  <Button.Label>Talk to Fio</Button.Label>
-                </Button>
-                <Button
-                  size="lg"
-                  variant="tertiary"
-                  onPress={() => setNotice('Type in the writing field below.')}
-                >
-                  <Button.Label>Type instead</Button.Label>
-                </Button>
-              </View>
-            </View>
-          ) : null}
-
           {active || voiceStatus.phase !== 'unconfigured' ? (
-            <Card className="border-border bg-background-secondary gap-3 border p-4">
+            <Card className="bg-fio-bubble gap-3 border-0 p-4">
               <View className="flex-row flex-wrap items-center gap-2">
                 {voiceStatus.phase === 'idle' ||
                 voiceStatus.phase === 'stopped' ||
@@ -339,19 +365,26 @@ export default function ConversationScreen() {
                 Voice: {voiceStatus.phase === 'unconfigured' ? 'unavailable' : voiceStatus.phase}
               </Typography>
               {voiceStatus.youSaid ? (
-                <View className="gap-1">
+                <View className="items-end gap-1">
                   <Typography className="text-muted text-sm font-medium">You said</Typography>
-                  <Typography className="text-foreground text-[18px] leading-7">
-                    {voiceStatus.youSaid}
-                  </Typography>
+                  <View className="bg-user-bubble max-w-[88%] rounded-2xl rounded-tr-sm px-4 py-3">
+                    <Typography className="text-foreground text-[18px] leading-7">
+                      {voiceStatus.youSaid}
+                    </Typography>
+                  </View>
                 </View>
               ) : null}
               {voiceStatus.fioSaid ? (
-                <View className="gap-1">
-                  <Typography className="text-muted text-sm font-medium">Fio said</Typography>
-                  <Typography className="text-foreground text-[18px] leading-7">
-                    {voiceStatus.fioSaid}
-                  </Typography>
+                <View className="items-start gap-1">
+                  <View className="flex-row items-center gap-2">
+                    <FioBird size={24} />
+                    <Typography className="text-muted text-sm font-medium">Fio said</Typography>
+                  </View>
+                  <View className="bg-background max-w-[88%] rounded-2xl rounded-tl-sm px-4 py-3">
+                    <Typography className="text-foreground text-[18px] leading-7">
+                      {voiceStatus.fioSaid}
+                    </Typography>
+                  </View>
                 </View>
               ) : null}
               {voiceStatus.message ? (
@@ -363,11 +396,27 @@ export default function ConversationScreen() {
           ) : null}
 
           {active?.turns.map((turn) => (
-            <View key={turn.id} className="gap-2">
-              <Typography className="text-muted text-sm font-medium">
-                {turn.role === 'user' ? 'You said' : 'Fio said'}
-              </Typography>
-              <Typography className="text-foreground text-[18px] leading-7">{turn.text}</Typography>
+            <View
+              key={turn.id}
+              className={turn.role === 'user' ? 'items-end gap-2' : 'items-start gap-2'}
+            >
+              <View className="flex-row items-center gap-2">
+                {turn.role === 'fio' ? <FioBird size={24} /> : null}
+                <Typography className="text-muted text-sm font-medium">
+                  {turn.role === 'user' ? 'You said' : 'Fio said'}
+                </Typography>
+              </View>
+              <View
+                className={
+                  turn.role === 'user'
+                    ? 'bg-user-bubble max-w-[88%] rounded-2xl rounded-tr-sm px-4 py-3'
+                    : 'bg-fio-bubble max-w-[88%] rounded-2xl rounded-tl-sm px-4 py-3'
+                }
+              >
+                <Typography className="text-foreground text-[18px] leading-7">
+                  {turn.text}
+                </Typography>
+              </View>
               {turn.contextText ? (
                 <Card className="border-border bg-background-secondary border p-3">
                   <Typography className="text-muted text-sm font-medium">Context</Typography>

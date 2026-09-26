@@ -96,7 +96,13 @@ export function ArtifactCard({
   };
 
   return (
-    <Card className="border-border bg-background gap-4 border p-4">
+    <Card
+      className={
+        isSelected
+          ? 'border-accent bg-artifact-selected gap-4 border p-4'
+          : 'border-border bg-surface gap-4 border p-4'
+      }
+    >
       <View className="flex-row items-center justify-between gap-3">
         <Typography className="text-foreground font-semibold">{artifact.title}</Typography>
         <Button
@@ -118,26 +124,39 @@ export function ArtifactCard({
           accessibilityLabel={`${artifact.title} text`}
         />
       </TextField>
-      <View className="flex-row flex-wrap gap-2">
-        <Button
-          size="md"
-          variant="tertiary"
-          onPress={() => void undo()}
-          isDisabled={!artifact.previous}
-        >
-          <RotateCcw color={muted} size={18} />
-          <Button.Label>Undo edit</Button.Label>
-        </Button>
-        <Button size="md" variant="tertiary" onPress={() => void copy()}>
-          <Copy color={accent} size={18} />
-          <Button.Label>Copy</Button.Label>
-        </Button>
-        <Button size="md" variant="tertiary" onPress={() => void read()}>
-          <Volume2 color={accent} size={18} />
-          <Button.Label>Read aloud</Button.Label>
-        </Button>
-      </View>
-      {frozenReadText !== null ? (
+      {isSelected ? (
+        <View className="flex-row flex-wrap gap-2">
+          <Button
+            size="md"
+            variant="tertiary"
+            onPress={() => void undo()}
+            isDisabled={!artifact.previous}
+            accessibilityLabel="Undo artifact edit"
+          >
+            <RotateCcw color={muted} size={18} />
+            <Button.Label>Undo edit</Button.Label>
+          </Button>
+          <Button
+            size="md"
+            variant="tertiary"
+            onPress={() => void copy()}
+            accessibilityLabel="Copy artifact exactly"
+          >
+            <Copy color={accent} size={18} />
+            <Button.Label>Copy</Button.Label>
+          </Button>
+          <Button
+            size="md"
+            variant="tertiary"
+            onPress={() => void read()}
+            accessibilityLabel="Read artifact aloud"
+          >
+            <Volume2 color={accent} size={18} />
+            <Button.Label>Read aloud</Button.Label>
+          </Button>
+        </View>
+      ) : null}
+      {isSelected && frozenReadText !== null ? (
         <Card className="bg-background-secondary gap-1 p-3">
           <Typography className="text-muted text-sm font-medium">Frozen read-aloud text</Typography>
           <Typography className="text-foreground text-base leading-6">{frozenReadText}</Typography>
