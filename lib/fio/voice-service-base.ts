@@ -6,7 +6,7 @@ import type {
 } from './types';
 
 export const VOICE_UNAVAILABLE_MESSAGE =
-  'Voice is not connected in Expo Go. You can keep writing and save editable artifacts.';
+  'GPT-Live-1 voice is unavailable in Expo Go: React Native JavaScript has no WebRTC peer connection, and no reviewed HTTPS media bridge is configured. Keep writing manually.';
 
 export class UnconfiguredVoiceService implements VoiceService {
   readonly isConfigured = false;

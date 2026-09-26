@@ -34,10 +34,12 @@ export class ThreadOperationQueue<T, R> {
       const entry = this.entries[0];
       try {
         const result = await this.send(entry);
+        if (this.entries[0] !== entry) continue;
         entry.state = 'confirmed';
         this.entries.shift();
         entry.resolve(result);
       } catch (cause) {
+        if (this.entries[0] !== entry) continue;
         entry.state = 'unknown';
         entry.reject(cause);
         break;

@@ -26,39 +26,50 @@ Routes: `/` for the conversation and `/history` for saved local threads. The iPh
 - Strict 128 KiB UTF-8 text checks, mapped authorization/capacity/cancellation/idempotency errors, and a reusable one-in-flight FIFO queue.
 - Read aloud and Copy capture the exact selected artifact snapshot. Read aloud does not send or speak it while voice is unavailable.
 
-## Expo Go voice feasibility result
+## GPT-Live-1 frontend boundary
 
-Expo SDK 57 recommends `react-native-webview` 13.16.1 and documents it as included in Expo Go. Its iOS WKWebView supports WebRTC browser APIs on a secure HTTPS document origin, and React Native WebView exposes iOS media-capture permission handling.
+GPT-Live-1 is the only voice protocol represented by the client. The dormant API client accepts a phone-generated WebRTC offer only through:
 
-That is not enough to ship a secure voice bridge from this client alone:
+```text
+POST https://fioai.vercel.app/api/fio/voice/live/sessions
+```
 
-- Inline `source={{ html }}` content does not provide the trusted HTTPS origin needed for reliable microphone `getUserMedia` in WKWebView.
-- A genuine bridge therefore needs a reviewed HTTPS page hosted by the trusted Fio API origin, plus its navigation/CSP/CORS rules and a narrow native-message protocol.
-- This repository has no such hosted bridge page, and this pass does not authorize deploying one.
-- The broker response fields and contract version are now known from a tested local handoff, but that corrected broker is not deployed; provider event shapes and the read-aloud request event remain unconfirmed.
-- Passing the installation credential or arbitrary instructions/tools into an unrelated page would violate the trust boundary.
+It sends `{ sdp, thread_id? }` with the installation Bearer credential and latest `X-Fio-Sync-Token`. It requires HTTP `201`, an SDP answer bound to that offer, `model: "gpt-live-1"`, Azure/WebRTC identifiers, `credential_expires_at: null`, the reviewed tool-contract version, and either `confirmed` or `awaiting_session_started`. It rejects old URL/client-secret grants and never calls retired `/voice/sessions`.
 
-For those reasons no WebView voice bridge was added and no speech is simulated. The default native entrypoint deliberately has no `react-native-webrtc` import, so Expo Go can load the manual app. A physical iPhone has not proven microphone capture, Azure WebRTC, data-channel tools, or playback.
+The Live protocol groundwork:
 
-## Dormant broker configuration
+- unwraps `response.event` and accepts `response.output_item.done` function calls only;
+- allows backend `artifact_list`, `artifact_read`, `artifact_create`, `artifact_update`, and `artifact_undo`, plus local `artifact_select`;
+- binds calls to the captured session/thread, validates local artifact targets, deduplicates `call_id`, and serializes work through one FIFO;
+- generates write operation IDs from the trusted session/call binding rather than treating model-supplied IDs as authorization;
+- sends correlated `response.item.create` function outputs followed by `response.create`;
+- strips thread/session/call identifiers and `kind` from generic `artifact_create` backend arguments.
 
-The dormant API client reads a configurable full API prefix:
+The media/tool gate requires an effective `session.started` or `session.updated` event whose instructions and `delegation.responses.tools` exactly match a reviewed server-frozen bundle. `tool_contract_version` and broker status alone never open the gate. This repository does not contain that frozen bundle, so the transport remains fail-closed.
+
+## Expo Go voice incompatibility
+
+Expo Go can load the manual app, but its React Native JavaScript runtime does not expose a WebRTC peer connection. `react-native-webview` 13.16.1 is included, and WKWebView can support browser WebRTC from a secure HTTPS document, but this project has no reviewed hosted bridge page or narrow credential/session protocol. Inline HTML is not used. There is also no eager `react-native-webrtc` import or custom native build route in this repository.
+
+Therefore no microphone, output audio, model call, or tool execution is enabled in Expo Go. A genuine iPhone route requires either a reviewed HTTPS media bridge or a custom development build with an isolated compatible native WebRTC adapter. Neither route has been run on an iPhone Air/iOS 27.2, so no phone voice success is claimed.
+
+## Broker readiness and configuration
+
+The client reads the public full API prefix without adding `/api/fio` again:
 
 ```sh
 EXPO_PUBLIC_FIO_API_BASE_URL=https://fioai.vercel.app/api/fio
 ```
 
-This is a public URL, not a secret, and it is not a live-voice enablement flag. Voice remains unavailable because the five server-side `FIO_*` Production settings are absent and the corrected broker contract is not deployed. Long-lived Azure and Redis credentials stay on the Next.js server and must never be added to Expo environment variables or the client bundle.
+This public value is not a secret and is not proof of broker readiness. The production alias may resolve to a ready deployment while the new Live broker code and canonical server-only Azure/Upstash configuration are still undeployed. No registration or session request should be made to infer readiness until the backend owner confirms deployment.
 
-The dormant adapter now fail-closes unless `POST /voice/sessions` returns HTTP `201` with the tested Azure WebRTC fields and this exact nonsecret contract version:
+The reviewed nonsecret tool contract version remains:
 
 ```text
 fio-tools-v1:e84b0d5d4e661714212210a2f7231bbb12135cfb178ecd2b7ff570c3b5760a02
 ```
 
-It does not accept obsolete SDP/Live fields, client-installed instructions, or arbitrary tool schemas. The generic `artifact_create` backend call sends only `operation_id`, `title`, and `text`; it does not send a local artifact `kind`. The other backend tools remain `artifact_list`, `artifact_read`, `artifact_update`, and `artifact_undo`, while `artifact_select` remains local.
-
-The local product still distinguishes message, reply, notes, and document artifacts. Because the tested generic backend create contract does not preserve those distinct kinds, full PRD acceptance remains blocked on a broader backend contract decision. The supplied thread API also does not yet confirm the JSON shape of `initial`/`change`, remote thread-ID mapping, provider event protocol, or trusted read-aloud event.
+The local product still distinguishes message, reply, notes, and document artifacts. The generic backend `artifact_create` contract does not carry `kind`, so preserving those distinct kinds remains a full-scope backend contract gap; full PRD acceptance is not claimed. Final Live transcript/read-aloud event shapes and the exact frozen session bundle are also still required before enabling media.
 
 ## Local persistence limits
 

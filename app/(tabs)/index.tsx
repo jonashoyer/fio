@@ -68,7 +68,9 @@ export default function ConversationScreen() {
   const previousActiveIdRef = useRef(active?.id);
 
   useEffect(() => {
-    if (previousActiveIdRef.current && !active) void voiceService.disconnect();
+    if (previousActiveIdRef.current && previousActiveIdRef.current !== active?.id) {
+      void voiceService.disconnect();
+    }
     previousActiveIdRef.current = active?.id;
     activeRef.current = active;
     persistRef.current = persist;
@@ -173,7 +175,7 @@ export default function ConversationScreen() {
     setText('');
     setAttachments([]);
     setShowContext(false);
-    setNotice(VOICE_UNAVAILABLE_MESSAGE);
+    setNotice(null);
     await persist(thread);
   };
 

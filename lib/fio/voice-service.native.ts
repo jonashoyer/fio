@@ -4,8 +4,9 @@ import { UnconfiguredVoiceService, VOICE_UNAVAILABLE_MESSAGE } from './voice-ser
 export { VOICE_UNAVAILABLE_MESSAGE };
 
 /**
- * Expo Go resolves native platform files, but it does not include react-native-webrtc.
- * Keep the native entrypoint free of unsupported native imports so manual Fio stays usable.
+ * Expo Go resolves native platform files but exposes no WebRTC peer connection to
+ * React Native JavaScript. Keep this entrypoint free of custom native imports.
+ * A hosted WebView bridge is also disabled until its HTTPS page and protocol are reviewed.
  */
 export function createVoiceService(): VoiceService {
   return new UnconfiguredVoiceService();

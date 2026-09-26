@@ -2,6 +2,7 @@ const MAX_TEXT_BYTES = 128 * 1024;
 const SYNC_HEADER = 'X-Fio-Sync-Token';
 export const FIO_TOOL_CONTRACT_VERSION =
   'fio-tools-v1:e84b0d5d4e661714212210a2f7231bbb12135cfb178ecd2b7ff570c3b5760a02';
+export const FIO_LIVE_MODEL = 'gpt-live-1';
 
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -26,18 +27,18 @@ export class FioApiError extends Error {
   }
 }
 
-export interface VoiceSessionGrant {
+export interface LiveSessionAnswer {
   threadId: string | null;
   contextRestored: false;
   provider: 'azure';
   transport: 'webrtc';
-  callUrl: string;
-  model: string;
-  clientSecret: {
-    value: string;
-    expiresAt: number;
-  };
+  model: typeof FIO_LIVE_MODEL;
+  backendModel: string;
+  sessionId: string;
+  answerSdp: string;
   toolContractVersion: typeof FIO_TOOL_CONTRACT_VERSION;
+  toolContractStatus: 'confirmed' | 'awaiting_session_started';
+  credentialExpiresAt: null;
 }
 
 interface CredentialStore {
@@ -71,13 +72,6 @@ function record(value: unknown): JsonObject | null {
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== 'string' || !value)
     throw new Error(`The Fio API response is missing ${label}.`);
-  return value;
-}
-
-function requiredUnixSeconds(value: unknown, label: string): number {
-  if (!Number.isInteger(value) || typeof value !== 'number' || value <= 0) {
-    throw new Error(`The Fio API response has an invalid ${label}.`);
-  }
   return value;
 }
 
@@ -182,43 +176,50 @@ export class FioApiClient {
     return identity;
   }
 
-  async createVoiceSession(threadId?: string): Promise<VoiceSessionGrant> {
+  async createLiveSession(offerSdp: string, threadId?: string): Promise<LiveSessionAnswer> {
+    if (!offerSdp.trim()) throw new Error('A phone WebRTC offer is required for Live.');
     const body = record(
       await this.request(
-        '/voice/sessions',
+        '/voice/live/sessions',
         {
           method: 'POST',
-          body: JSON.stringify(threadId ? { thread_id: threadId } : {}),
+          body: JSON.stringify({ sdp: offerSdp, ...(threadId ? { thread_id: threadId } : {}) }),
         },
         true,
         201,
       ),
     );
     if (!body || body.ok !== true) {
-      throw new Error('The voice broker did not return a successful session grant.');
+      throw new Error('The Live broker did not return a successful SDP answer.');
     }
     if (body.context_restored !== false) {
-      throw new Error('The voice broker returned an unsupported restored context.');
+      throw new Error('The Live broker returned an unsupported restored context.');
     }
     if (body.provider !== 'azure' || body.transport !== 'webrtc') {
-      throw new Error('The voice broker returned an unsupported provider or transport.');
+      throw new Error('The Live broker returned an unsupported provider or transport.');
+    }
+    if (body.model !== FIO_LIVE_MODEL) {
+      throw new Error('The broker did not bind this session to GPT-Live-1.');
     }
     if (body.tool_contract_version !== FIO_TOOL_CONTRACT_VERSION) {
-      throw new Error('The voice broker tool contract is unavailable or unreviewed.');
+      throw new Error('The Live tool contract is unavailable or unreviewed.');
+    }
+    if (
+      body.tool_contract_status !== 'confirmed' &&
+      body.tool_contract_status !== 'awaiting_session_started'
+    ) {
+      throw new Error('The Live broker returned an invalid contract status.');
+    }
+    if (body.credential_expires_at !== null) {
+      throw new Error('The Live broker returned an unexpected client credential.');
     }
 
     const returnedThreadId = body.thread_id;
     if (returnedThreadId !== null && typeof returnedThreadId !== 'string') {
-      throw new Error('The voice broker returned an invalid thread_id.');
+      throw new Error('The Live broker returned an invalid thread_id.');
     }
     if (threadId && returnedThreadId !== threadId) {
-      throw new Error('The voice broker returned a session for a different thread.');
-    }
-
-    const clientSecret = record(body.client_secret);
-    const expiresAt = requiredUnixSeconds(clientSecret?.expires_at, 'client_secret.expires_at');
-    if (expiresAt <= Math.floor(Date.now() / 1000)) {
-      throw new Error('The temporary voice credential has expired.');
+      throw new Error('The Live broker returned a session for a different thread.');
     }
 
     return {
@@ -226,13 +227,13 @@ export class FioApiClient {
       contextRestored: false,
       provider: 'azure',
       transport: 'webrtc',
-      callUrl: requiredString(body.url, 'url'),
-      model: requiredString(body.model, 'model'),
-      clientSecret: {
-        value: requiredString(clientSecret?.value, 'client_secret.value'),
-        expiresAt,
-      },
+      model: FIO_LIVE_MODEL,
+      backendModel: requiredString(body.backend_model, 'backend_model'),
+      sessionId: requiredString(body.session_id, 'session_id'),
+      answerSdp: requiredString(body.sdp, 'sdp'),
       toolContractVersion: FIO_TOOL_CONTRACT_VERSION,
+      toolContractStatus: body.tool_contract_status,
+      credentialExpiresAt: null,
     };
   }
 
