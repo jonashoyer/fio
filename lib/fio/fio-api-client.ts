@@ -1,7 +1,8 @@
+import { FIO_LIVE_TOOL_CONTRACT_VERSION } from './live-contract';
+
 const MAX_TEXT_BYTES = 128 * 1024;
 const SYNC_HEADER = 'X-Fio-Sync-Token';
-export const FIO_TOOL_CONTRACT_VERSION =
-  'fio-tools-v1:e84b0d5d4e661714212210a2f7231bbb12135cfb178ecd2b7ff570c3b5760a02';
+export { FIO_LIVE_TOOL_CONTRACT_VERSION } from './live-contract';
 export const FIO_LIVE_MODEL = 'gpt-live-1';
 
 export type JsonPrimitive = boolean | number | string | null;
@@ -36,7 +37,7 @@ export interface LiveSessionAnswer {
   backendModel: string;
   sessionId: string;
   answerSdp: string;
-  toolContractVersion: typeof FIO_TOOL_CONTRACT_VERSION;
+  toolContractVersion: typeof FIO_LIVE_TOOL_CONTRACT_VERSION;
   toolContractStatus: 'confirmed' | 'awaiting_session_started';
   credentialExpiresAt: null;
 }
@@ -201,7 +202,7 @@ export class FioApiClient {
     if (body.model !== FIO_LIVE_MODEL) {
       throw new Error('The broker did not bind this session to GPT-Live-1.');
     }
-    if (body.tool_contract_version !== FIO_TOOL_CONTRACT_VERSION) {
+    if (body.tool_contract_version !== FIO_LIVE_TOOL_CONTRACT_VERSION) {
       throw new Error('The Live tool contract is unavailable or unreviewed.');
     }
     if (
@@ -231,7 +232,7 @@ export class FioApiClient {
       backendModel: requiredString(body.backend_model, 'backend_model'),
       sessionId: requiredString(body.session_id, 'session_id'),
       answerSdp: requiredString(body.sdp, 'sdp'),
-      toolContractVersion: FIO_TOOL_CONTRACT_VERSION,
+      toolContractVersion: FIO_LIVE_TOOL_CONTRACT_VERSION,
       toolContractStatus: body.tool_contract_status,
       credentialExpiresAt: null,
     };

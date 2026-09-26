@@ -45,7 +45,7 @@ The Live protocol groundwork:
 - sends correlated `response.item.create` function outputs followed by `response.create`;
 - strips thread/session/call identifiers and `kind` from generic `artifact_create` backend arguments.
 
-The media/tool gate requires an effective `session.started` or `session.updated` event whose instructions and `delegation.responses.tools` exactly match a reviewed server-frozen bundle. `tool_contract_version` and broker status alone never open the gate. This repository does not contain that frozen bundle, so the transport remains fail-closed.
+The media/tool gate requires a complete effective `session.started` or `session.updated` event. Mobile source embeds the reviewed nonsecret generated bundle from `docs/voice_agent_prompt_and_tools.md` and independently requires the exact voice instructions, `delegation.type: "responses"`, broker-reported backend model, delegated instructions, `tool_choice: "auto"`, `parallel_tool_calls: false`, and all six canonical function definitions. Missing fields remain `awaiting`; any mismatch is `unavailable`. `tool_contract_version` and broker status alone never open the gate.
 
 ## Expo Go voice incompatibility
 
@@ -63,13 +63,15 @@ EXPO_PUBLIC_FIO_API_BASE_URL=https://fioai.vercel.app/api/fio
 
 This public value is not a secret and is not proof of broker readiness. The production alias may resolve to a ready deployment while the new Live broker code and canonical server-only Azure/Upstash configuration are still undeployed. No registration or session request should be made to infer readiness until the backend owner confirms deployment.
 
-The reviewed nonsecret tool contract version remains:
+The reviewed nonsecret Live contract version is:
 
 ```text
-fio-tools-v1:e84b0d5d4e661714212210a2f7231bbb12135cfb178ecd2b7ff570c3b5760a02
+fio-live-v1:c5e965a0e17ab8901e7745a125b9c7726eb16a160b67650550f4454381cc66af
 ```
 
-The local product still distinguishes message, reply, notes, and document artifacts. The generic backend `artifact_create` contract does not carry `kind`, so preserving those distinct kinds remains a full-scope backend contract gap; full PRD acceptance is not claimed. Final Live transcript/read-aloud event shapes and the exact frozen session bundle are also still required before enabling media.
+The embedded bundle is marked `Unvetted Synthetic` with content SHA-256 `c5e965a0e17ab8901e7745a125b9c7726eb16a160b67650550f4454381cc66af`. The broker implementation is still local and may change; any deployed version or effective-session drift must keep voice unavailable until the mobile bundle is reviewed and updated.
+
+The local product still distinguishes message, reply, notes, and document artifacts. The generic backend `artifact_create` contract does not carry `kind`, so preserving those distinct kinds remains a full-scope backend contract gap; full PRD acceptance is not claimed. Final Live transcript/read-aloud event shapes, deployed broker parity with the embedded bundle, and a supported device transport are still required before enabling media.
 
 ## Local persistence limits
 

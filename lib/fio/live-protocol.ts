@@ -1,9 +1,5 @@
-import {
-  FIO_LIVE_MODEL,
-  FIO_TOOL_CONTRACT_VERSION,
-  type JsonObject,
-  type JsonValue,
-} from './fio-api-client';
+import { FIO_LIVE_MODEL, type JsonObject, type JsonValue } from './fio-api-client';
+import { REVIEWED_LIVE_CONTRACT } from './live-contract';
 
 export const GPT_LIVE_MODEL = FIO_LIVE_MODEL;
 
@@ -17,15 +13,11 @@ export const LIVE_TOOL_NAMES = [
 ] as const;
 
 export type LiveToolName = (typeof LIVE_TOOL_NAMES)[number];
-
-export interface FrozenLiveContract {
-  version: typeof FIO_TOOL_CONTRACT_VERSION;
-  instructions: string;
-  tools: readonly JsonValue[];
-}
+export type LiveContractStatus = 'confirmed' | 'awaiting' | 'unavailable';
 
 export interface LiveContractCheck {
   confirmed: boolean;
+  status: LiveContractStatus;
   reason: string;
 }
 
@@ -73,54 +65,100 @@ function exactlyMatches(left: JsonValue, right: JsonValue): boolean {
   return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right));
 }
 
+function awaiting(reason: string): LiveContractCheck {
+  return { confirmed: false, status: 'awaiting', reason };
+}
+
+function unavailable(reason: string): LiveContractCheck {
+  return { confirmed: false, status: 'unavailable', reason };
+}
+
+function hasOwn(value: JsonObject, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 /**
- * Confirms the effective server-installed Live session configuration.
- * A version string or broker assertion alone never opens the media/tool gate.
+ * Independently confirms the effective server-installed Live session configuration.
+ * Only the embedded reviewed bundle is trusted; broker assertions and client/user text
+ * never supply expected instructions or schemas.
  */
 export function checkEffectiveLiveContract(
   envelope: unknown,
-  expected: FrozenLiveContract | null,
+  brokerBackendModel: string,
 ): LiveContractCheck {
-  if (!expected) {
-    return {
-      confirmed: false,
-      reason: 'The reviewed server-frozen Live instruction and tool bundle is not available.',
-    };
-  }
-  if (expected.version !== FIO_TOOL_CONTRACT_VERSION) {
-    return {
-      confirmed: false,
-      reason: 'The reviewed Live tool contract version does not match.',
-    };
+  if (!brokerBackendModel) {
+    return unavailable('The broker did not provide its delegated backend model.');
   }
 
   const event = unwrapResponseEvent(envelope);
   if (!event || (event.type !== 'session.started' && event.type !== 'session.updated')) {
-    return { confirmed: false, reason: 'Waiting for a complete Live session configuration event.' };
+    return awaiting('Waiting for a complete Live session configuration event.');
+  }
+  if (!isJsonObject(event.session)) {
+    return awaiting('The Live session configuration is incomplete.');
   }
 
-  const session = isJsonObject(event.session) ? event.session : event;
-  const delegation = isJsonObject(session.delegation) ? session.delegation : null;
-  const responses = isJsonObject(delegation?.responses) ? delegation.responses : null;
-  const tools = responses?.tools;
-
+  const session = event.session;
+  if (
+    !hasOwn(session, 'model') ||
+    !hasOwn(session, 'instructions') ||
+    !hasOwn(session, 'delegation')
+  ) {
+    return awaiting('The Live session configuration is incomplete.');
+  }
   if (session.model !== GPT_LIVE_MODEL) {
-    return { confirmed: false, reason: 'The effective session is not bound to GPT-Live-1.' };
+    return unavailable('The effective session is not bound to GPT-Live-1.');
   }
-  if (session.instructions !== expected.instructions || !Array.isArray(tools)) {
-    return {
-      confirmed: false,
-      reason: 'The effective Live session did not expose the reviewed instruction and tool bundle.',
-    };
+  if (session.instructions !== REVIEWED_LIVE_CONTRACT.voiceInstructions) {
+    return unavailable('The effective voice instructions drift from the reviewed bundle.');
   }
-  if (!exactlyMatches(tools, [...expected.tools])) {
-    return {
-      confirmed: false,
-      reason: 'The effective Live tool bundle does not match the reviewed server-frozen bundle.',
-    };
+  if (!isJsonObject(session.delegation)) {
+    return unavailable('The effective Live delegation configuration is invalid.');
   }
 
-  return { confirmed: true, reason: 'The effective Live session contract is confirmed.' };
+  const delegation = session.delegation;
+  if (!hasOwn(delegation, 'type') || !hasOwn(delegation, 'responses')) {
+    return awaiting('The Live delegation configuration is incomplete.');
+  }
+  if (delegation.type !== 'responses' || !isJsonObject(delegation.responses)) {
+    return unavailable('The effective Live delegation type does not match the reviewed bundle.');
+  }
+
+  const responses = delegation.responses;
+  const requiredResponseFields = [
+    'model',
+    'instructions',
+    'tool_choice',
+    'parallel_tool_calls',
+    'tools',
+  ] as const;
+  if (requiredResponseFields.some((field) => !hasOwn(responses, field))) {
+    return awaiting('The delegated Responses configuration is incomplete.');
+  }
+  if (responses.model !== brokerBackendModel) {
+    return unavailable('The delegated Responses model differs from the broker backend model.');
+  }
+  if (responses.instructions !== REVIEWED_LIVE_CONTRACT.delegatedInstructions) {
+    return unavailable('The delegated instructions drift from the reviewed bundle.');
+  }
+  if (responses.tool_choice !== 'auto') {
+    return unavailable('The delegated tool choice does not match the reviewed bundle.');
+  }
+  if (responses.parallel_tool_calls !== false) {
+    return unavailable('Parallel delegated tool calls are not allowed by the reviewed bundle.');
+  }
+  if (!Array.isArray(responses.tools)) {
+    return unavailable('The effective Live tool bundle is invalid.');
+  }
+  if (!exactlyMatches(responses.tools, [...REVIEWED_LIVE_CONTRACT.tools])) {
+    return unavailable('The effective Live tool bundle drifts from the reviewed bundle.');
+  }
+
+  return {
+    confirmed: true,
+    status: 'confirmed',
+    reason: 'The effective Live session contract is confirmed.',
+  };
 }
 
 export function isLiveToolName(value: unknown): value is LiveToolName {
