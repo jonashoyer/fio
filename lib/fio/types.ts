@@ -1,5 +1,5 @@
 export type AttachmentKind = 'image';
-export type ArtifactKind = 'message' | 'reply' | 'notes';
+export type ArtifactKind = 'message' | 'reply' | 'notes' | 'document';
 export type TurnRole = 'user' | 'fio';
 
 export interface Attachment {
@@ -60,10 +60,49 @@ export interface ReferenceContextDraftRepository {
   clear(): Promise<void>;
 }
 
+export type VoicePhase =
+  | 'unconfigured'
+  | 'idle'
+  | 'connecting'
+  | 'listening'
+  | 'processing'
+  | 'speaking'
+  | 'stopped'
+  | 'error';
+
+export interface VoiceStatus {
+  phase: VoicePhase;
+  isMuted: boolean;
+  youSaid?: string;
+  fioSaid?: string;
+  frozenReadText?: string;
+  message?: string;
+}
+
+export interface VoiceArtifactSnapshot {
+  id: string;
+  text: string;
+}
+
+export interface VoiceSessionContext {
+  getThreadId: () => string | undefined;
+  getArtifacts: () => readonly Artifact[];
+  onSelectArtifact: (artifactId: string) => void;
+  onFinalUserTranscript: (text: string) => Promise<void>;
+  onFinalFioTranscript: (text: string) => Promise<void>;
+  onPersistedArtifact: (artifact: Artifact, canUndo: boolean) => Promise<void>;
+}
+
 export interface VoiceService {
   readonly isConfigured: boolean;
-  startConversation(): Promise<never>;
-  readArtifact(artifact: Artifact): Promise<never>;
+  getStatus(): VoiceStatus;
+  subscribe(listener: (status: VoiceStatus) => void): () => void;
+  startConversation(context: VoiceSessionContext): Promise<void>;
+  stopListening(): Promise<void>;
+  stopSpeaking(): Promise<void>;
+  setMuted(muted: boolean): void;
+  readArtifact(snapshot: VoiceArtifactSnapshot, context: VoiceSessionContext): Promise<void>;
+  disconnect(): Promise<void>;
 }
 
 export interface ClipboardService {

@@ -3,17 +3,27 @@ import { Button, Card, Label, TextArea, TextField, Typography, useThemeColor } f
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { clipboardService, voiceService } from '@/lib/fio/services';
-import type { Artifact } from '@/lib/fio/types';
+import { clipboardService } from '@/lib/fio/services';
+import type { Artifact, VoiceArtifactSnapshot } from '@/lib/fio/types';
 
 interface ArtifactCardProps {
   artifact: Artifact;
+  isSelected: boolean;
+  onSelect: (artifactId: string) => void;
+  onRead: (snapshot: VoiceArtifactSnapshot) => Promise<void>;
   onSave: (artifact: Artifact) => Promise<boolean>;
 }
 
-export function ArtifactCard({ artifact, onSave }: ArtifactCardProps) {
+export function ArtifactCard({
+  artifact,
+  isSelected,
+  onSelect,
+  onRead,
+  onSave,
+}: ArtifactCardProps) {
   const [draft, setDraft] = useState(artifact.text);
   const [notice, setNotice] = useState<string | null>(null);
+  const [frozenReadText, setFrozenReadText] = useState<string | null>(null);
   const [accent, muted] = useThemeColor(['accent', 'muted']);
 
   const save = async () => {
@@ -55,8 +65,11 @@ export function ArtifactCard({ artifact, onSave }: ArtifactCardProps) {
   };
 
   const read = async () => {
+    const snapshot = { id: artifact.id, text: artifact.text };
+    setFrozenReadText(snapshot.text);
     try {
-      await voiceService.readArtifact(artifact);
+      await onRead(snapshot);
+      setNotice('Reading the frozen artifact text.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Read aloud is unavailable.');
     }
@@ -66,7 +79,14 @@ export function ArtifactCard({ artifact, onSave }: ArtifactCardProps) {
     <Card className="border-border bg-background gap-4 border p-4">
       <View className="flex-row items-center justify-between gap-3">
         <Typography className="text-foreground font-semibold">{artifact.title}</Typography>
-        <Typography className="text-muted text-sm">Editable artifact</Typography>
+        <Button
+          size="md"
+          variant={isSelected ? 'secondary' : 'tertiary'}
+          onPress={() => onSelect(artifact.id)}
+          accessibilityLabel={`${isSelected ? 'Selected' : 'Select'} ${artifact.title}`}
+        >
+          <Button.Label>{isSelected ? 'Selected' : 'Select'}</Button.Label>
+        </Button>
       </View>
       <TextField>
         <Label className="sr-only">{artifact.title} text</Label>
@@ -97,6 +117,12 @@ export function ArtifactCard({ artifact, onSave }: ArtifactCardProps) {
           <Button.Label>Read aloud</Button.Label>
         </Button>
       </View>
+      {frozenReadText !== null ? (
+        <Card className="bg-background-secondary gap-1 p-3">
+          <Typography className="text-muted text-sm font-medium">Frozen read-aloud text</Typography>
+          <Typography className="text-foreground text-base leading-6">{frozenReadText}</Typography>
+        </Card>
+      ) : null}
       {notice ? <Typography className="text-muted text-sm">{notice}</Typography> : null}
     </Card>
   );

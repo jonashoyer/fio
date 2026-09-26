@@ -1,6 +1,6 @@
-# Fio app foundation
+# Fio native voice foundation
 
-Fio is a no-login mobile writing assistant foundation built with React Native, Expo Router, HeroUI Native, and Uniwind. This is a maintainable app base for product validation, **not a production-ready release**.
+Fio is a no-login React Native/Expo writing assistant foundation. The manual writing, artifact, attachment, and same-installation history flow remains the reliable fallback. This is **not production-ready**.
 
 ## Run and check
 
@@ -8,8 +8,6 @@ Fio is a no-login mobile writing assistant foundation built with React Native, E
 npm install
 npm run ios
 npm run android
-npm run web
-
 npm run lint
 npm run lint:css
 npm run format:check
@@ -17,48 +15,64 @@ npm run expo-check
 npm run export:web
 ```
 
-The main preview route is `/`. History is available at `/history`.
+Routes: `/` for the conversation and `/history` for saved local threads.
 
 ## Implemented
 
-- Every app launch opens a new, empty conversation without creating a history record.
-- A non-empty submitted turn creates one thread; later turns update that same thread.
-- User writing, optional thread-level reference context, and image reference metadata persist even when Fio cannot reply. Reference context autosaves when editing finishes and is not copied into user turns or artifacts.
-- Supplied writing can be turned into a clearly labeled, editable manual artifact.
-- Artifact edits save automatically when editing finishes. **Undo edit** restores the last saved artifact text.
-- **Copy** writes the selected artifact text exactly and shows success or failure.
-- History can refresh, reopen, and permanently delete saved threads.
-- Save and load errors are visible in the UI.
-- Selected screenshots/photos are copied into the app document directory before they are attached, then displayed as references after relaunch. No OCR or image interpretation is claimed.
-- Local writes are serialized, and thread revisions prevent an older save from overwriting a newer saved revision.
+- New empty conversation on launch; non-empty turns create and update local history.
+- Separate autosaved reference context, durable native photo references, and no OCR/image-understanding claim.
+- Manual message/reply/notes/document artifacts with stable IDs, selection, autosave, one-step edit Undo, and exact Copy.
+- `You said` and `Fio said` turns, with completed voice transcripts saved locally when received.
+- Native-only WebRTC audio/data-channel transport using `react-native-webrtc`.
+- Microphone capture starts only after **Talk to Fio**, after broker/session validation.
+- Real transport states only: connecting, listening, processing, speaking, stopped, and error. Stop listening, Stop Fio, and Mute/Unmute act on the native transport.
+- SecureStore installation credential storage. Registration saves `device_id` and the one-time `credential` before any authenticated request.
+- `Authorization: Bearer` installation authentication and `X-Fio-Sync-Token` carry-forward, including registration.
+- Typed client methods for the supplied thread, operation, artifact, tool, deletion, and voice-session routes.
+- Strict 128 KiB UTF-8 text checks, mapped authorization/capacity/cancellation/idempotency errors, and a reusable one-in-flight FIFO queue that preserves an unknown-outcome operation’s original ID/body for retry.
+- Provider data-channel handling for the five backend artifact tools and local `artifact_select`. Tool targets must match the current thread; results return only after the backend reports persisted `data`.
+- Read aloud and Copy capture the exact selected artifact snapshot. The read snapshot is visible and remains frozen while a long request would run.
 
-## Deliberately unavailable
+## Required private configuration
 
-- Azure Realtime/Live native voice-to-voice is not configured. **Talk to Fio** and **Read aloud** remain visible but truthfully report this state and direct people to the working text path.
-- There are no generated Fio replies, canned corrections, browser dictation, standalone TTS, simulated delays, or listening animation.
-- There is no login, cloud sync, hosted storage, OCR, image understanding, publishing, or deployment.
-- Bilt Cloud versus an owned backend remains an open decision.
+The native client reads only:
 
-## Architecture
+```sh
+EXPO_PUBLIC_FIO_API_BASE_URL=https://your-private-fio-api.example
+```
 
-Fio domain models and replaceable boundaries live under `lib/fio/`:
+This must be a public **URL**, not a secret. Long-lived Azure and Redis credentials stay on the Next.js server. Do not add them to Expo environment variables or the client bundle.
 
-- `types.ts`: `Thread`, `Turn`, `Attachment`, and `Artifact`, plus repository, voice, clipboard, and durable attachment interfaces.
-- `local-thread-repository.ts`: isolated AsyncStorage adapter for same-device thread persistence.
-- `attachment-service.ts`: isolated native app-document-directory image copy and web-preview reference adapter.
-- `services.ts`: unconfigured voice adapter and exact clipboard adapter.
-- `thread-store.tsx`: UI-facing state and persistence orchestration.
+The mobile broker parser currently fails closed unless `POST /api/fio/voice/sessions` returns confirmed `temporary_credential`, `webrtc_call_url`, and a `tools` string array containing exactly these trusted server-installed capabilities:
 
-Screens use these interfaces rather than cloud SDKs. Credentials must remain out of the client when voice and backend integrations are added.
+```text
+artifact_list
+artifact_read
+artifact_create
+artifact_update
+artifact_undo
+artifact_select
+```
+
+Those response field names were not available in this repository’s backend handoff and must be confirmed with the backend owner before claiming a live integration. The client does not send session instructions, tool schemas, or an arbitrary model prompt.
+
+The supplied thread API does not define the JSON shape of `initial`/`change`, remote thread-ID mapping, session tool argument schemas, or the trusted read-aloud request event. Therefore local manual writes are not yet mirrored to the remote FIFO, a new unsaved voice thread cannot safely become a remote tool target, and Read aloud deliberately does not send text to Azure. These are explicit integration blockers, not simulated behavior.
+
+## Native iOS route
+
+`react-native-webrtc` is a custom native module and is **not testable proof in Expo Go or the browser preview**.
+
+- Bilt route: **Deploy & Share → Test on iPhone**, then run its fresh five-minute install command on a Mac with Xcode and a USB-connected iPhone.
+- Exported/local route: `npm run ios` (`expo run:ios`) on macOS with Xcode.
+- Current fallback iOS bundle identifier: `me.bilt.fio`; Bilt may override it through `BILT_IOS_BUNDLE_ID`.
+- The app includes `expo-dev-client`, `expo-secure-store`, the WebRTC config plugin, and an iOS microphone usage description.
+
+No native build was produced in this Linux sandbox. Permission denial, audio routing, interruption behavior, WebRTC transport, Azure media, and exact read-back must be tested on that private native build.
 
 ## Local persistence limits
 
-Current storage is a foundation adapter, not a final backend decision. Data stays on the current app installation, does not sync across devices, is not shared between native and web, and can be lost when browser/site data or the app is removed. It has no account recovery, remote backup, multi-device conflict handling, encryption policy, retention policy, or server-side access controls.
-
-Before production, verify private no-login backend behavior, backend privacy and retention, durable attachment lifecycle, offline/error behavior, native Azure voice capture/playback, interruption handling, consent, and credentials kept on a trusted server boundary. Cross-device synchronization and reinstall recovery are out of scope for this foundation.
+Local threads remain readable when the API or voice broker is unavailable. Data stays in this installation and can be lost if app/site data is removed. Cross-device synchronization and reinstall recovery are out of scope. A canceled voice session ignores later provider events and never reports stale tool success.
 
 ## Backend portability
 
-Published GitHub Repository sync behavior documents export of the client project. Automatic export of Bilt Cloud function/automation source, PostgreSQL schema or migrations, row-access policies, and storage-bucket definitions remains unconfirmed. Hosted data and secrets are not treated as exported source.
-
-When a backend is implemented, explicitly version its actual function source, migrations/schema changes, access policies, and bucket declarations in the owned repository, then check those definitions against deployed resources. Do not rely on client export as a backend backup.
+Published GitHub Repository sync documents client export. Automatic export of cloud function source, PostgreSQL schema/migrations, access rules, and bucket declarations remains unconfirmed; hosted data and secrets are not exported source. Future backend function source, migrations, policies, and storage declarations must be explicitly versioned and checked against deployed resources.

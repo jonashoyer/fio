@@ -15,9 +15,17 @@ export function createThread(firstTurn: Turn): Thread {
 }
 
 export function createUserTurn(text: string, attachments: Attachment[]): Turn {
+  return createTurn('user', text, attachments);
+}
+
+export function createFioTurn(text: string): Turn {
+  return createTurn('fio', text, []);
+}
+
+function createTurn(role: Turn['role'], text: string, attachments: Attachment[]): Turn {
   return {
     id: crypto.randomUUID(),
-    role: 'user',
+    role,
     text: text.trim(),
     attachmentIds: attachments.map(({ id }) => id),
     createdAt: new Date().toISOString(),
@@ -29,7 +37,14 @@ export function createArtifact(text: string, kind: ArtifactKind = 'notes'): Arti
   return {
     id: crypto.randomUUID(),
     kind,
-    title: kind === 'notes' ? 'Notes' : kind === 'reply' ? 'Reply' : 'Message',
+    title:
+      kind === 'notes'
+        ? 'Notes'
+        : kind === 'reply'
+          ? 'Reply'
+          : kind === 'document'
+            ? 'Document'
+            : 'Message',
     text,
     createdAt: now,
     updatedAt: now,

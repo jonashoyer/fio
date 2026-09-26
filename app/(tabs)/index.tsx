@@ -1,4 +1,14 @@
-import { History, ImagePlus, Mic, Plus, Send, X } from 'lucide-react-native';
+import {
+  History,
+  ImagePlus,
+  Mic,
+  MicOff,
+  Plus,
+  Send,
+  Square,
+  VolumeX,
+  X,
+} from 'lucide-react-native';
 import {
   Button,
   Card,
@@ -9,7 +19,7 @@ import {
   Typography,
   useThemeColor,
 } from 'heroui-native';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -17,9 +27,21 @@ import { ArtifactCard } from '@/components/ArtifactCard';
 import { FioBird } from '@/components/FioBird';
 import { attachmentService } from '@/lib/fio/attachment-service';
 import { VOICE_UNAVAILABLE_MESSAGE, voiceService } from '@/lib/fio/services';
-import { createArtifact, createThread, createUserTurn, nextThread } from '@/lib/fio/thread-helpers';
+import {
+  createArtifact,
+  createFioTurn,
+  createThread,
+  createUserTurn,
+  nextThread,
+} from '@/lib/fio/thread-helpers';
 import { useThreadStore } from '@/lib/fio/thread-store';
-import type { Artifact, Attachment, Thread } from '@/lib/fio/types';
+import type {
+  Artifact,
+  Attachment,
+  Thread,
+  VoiceArtifactSnapshot,
+  VoiceSessionContext,
+} from '@/lib/fio/types';
 
 export default function ConversationScreen() {
   const router = useRouter();
@@ -36,14 +58,87 @@ export default function ConversationScreen() {
   const [showContext, setShowContext] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState(voiceService.getStatus());
   const [accent, danger] = useThemeColor(['accent', 'danger']);
+  const activeRef = useRef(active);
+  const persistRef = useRef(persist);
+  const referenceContextRef = useRef(referenceContext);
+  const previousActiveIdRef = useRef(active?.id);
+
+  useEffect(() => {
+    if (previousActiveIdRef.current && !active) void voiceService.disconnect();
+    previousActiveIdRef.current = active?.id;
+    activeRef.current = active;
+    persistRef.current = persist;
+    referenceContextRef.current = referenceContext;
+  }, [active, persist, referenceContext]);
+
+  const voiceContext = useMemo<VoiceSessionContext>(
+    () => ({
+      getThreadId: () => activeRef.current?.id,
+      getArtifacts: () => activeRef.current?.artifacts ?? [],
+      onSelectArtifact: setSelectedArtifactId,
+      onFinalUserTranscript: async (transcript) => {
+        if (!transcript.trim()) return;
+        const turn = createUserTurn(transcript, []);
+        const current = activeRef.current;
+        const thread = current
+          ? nextThread(current, { turns: [...current.turns, turn] })
+          : {
+              ...createThread(turn),
+              referenceContext: referenceContextRef.current.trim()
+                ? referenceContextRef.current
+                : undefined,
+            };
+        activeRef.current = thread;
+        if (!(await persistRef.current(thread)))
+          throw new Error('The spoken turn could not be saved.');
+      },
+      onFinalFioTranscript: async (transcript) => {
+        if (!transcript.trim() || !activeRef.current) return;
+        const current = activeRef.current;
+        const thread = nextThread(current, {
+          turns: [...current.turns, createFioTurn(transcript)],
+        });
+        activeRef.current = thread;
+        if (!(await persistRef.current(thread)))
+          throw new Error('Fio’s spoken turn could not be saved.');
+      },
+      onPersistedArtifact: async (artifact, canUndo) => {
+        const current = activeRef.current;
+        if (!current) throw new Error('The voice artifact has no saved thread target.');
+        const existing = current.artifacts.find(({ id }) => id === artifact.id);
+        const confirmed =
+          canUndo && existing
+            ? { ...artifact, previous: { text: existing.text, savedAt: artifact.updatedAt } }
+            : artifact;
+        const artifacts = existing
+          ? current.artifacts.map((item) => (item.id === confirmed.id ? confirmed : item))
+          : [...current.artifacts, confirmed];
+        const thread = nextThread(current, { artifacts });
+        activeRef.current = thread;
+        setSelectedArtifactId(confirmed.id);
+        if (!(await persistRef.current(thread)))
+          throw new Error('The confirmed artifact could not be saved locally.');
+      },
+    }),
+    [],
+  );
+
+  useEffect(() => voiceService.subscribe(setVoiceStatus), []);
+  useEffect(() => () => void voiceService.disconnect(), []);
 
   const talk = async () => {
     try {
-      await voiceService.startConversation();
+      await voiceService.startConversation(voiceContext);
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : VOICE_UNAVAILABLE_MESSAGE);
     }
+  };
+
+  const readArtifact = async (snapshot: VoiceArtifactSnapshot) => {
+    await voiceService.readArtifact(snapshot, voiceContext);
   };
 
   const pickImage = async () => {
@@ -122,9 +217,11 @@ export default function ConversationScreen() {
   };
 
   const beginNew = () => {
+    void voiceService.disconnect();
     startNew();
     setText('');
     setAttachments([]);
+    setSelectedArtifactId(null);
     setNotice(null);
   };
 
@@ -176,16 +273,90 @@ export default function ConversationScreen() {
               <Typography className="text-foreground max-w-lg text-3xl leading-10 font-semibold">
                 What are you writing?
               </Typography>
-              <Button size="lg" onPress={() => void talk()} accessibilityLabel="Talk to Fio">
-                <Mic color="#FFFFFF" size={21} />
-                <Button.Label>Talk to Fio</Button.Label>
-              </Button>
+              <View className="flex-row flex-wrap gap-2">
+                <Button size="lg" onPress={() => void talk()} accessibilityLabel="Talk to Fio">
+                  <Mic color="#FFFFFF" size={21} />
+                  <Button.Label>Talk to Fio</Button.Label>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="tertiary"
+                  onPress={() => setNotice('Type in the writing field below.')}
+                >
+                  <Button.Label>Type instead</Button.Label>
+                </Button>
+              </View>
             </View>
+          ) : null}
+
+          {active || voiceStatus.phase !== 'unconfigured' ? (
+            <Card className="border-border bg-background-secondary gap-3 border p-4">
+              <View className="flex-row flex-wrap items-center gap-2">
+                {voiceStatus.phase === 'idle' ||
+                voiceStatus.phase === 'stopped' ||
+                voiceStatus.phase === 'error' ||
+                voiceStatus.phase === 'unconfigured' ? (
+                  <Button onPress={() => void talk()} accessibilityLabel="Talk to Fio">
+                    <Mic color="#FFFFFF" size={20} />
+                    <Button.Label>Talk to Fio</Button.Label>
+                  </Button>
+                ) : null}
+                {voiceStatus.phase === 'connecting' ||
+                voiceStatus.phase === 'listening' ||
+                voiceStatus.phase === 'processing' ? (
+                  <Button variant="secondary" onPress={() => void voiceService.stopListening()}>
+                    <Square color={accent} size={18} />
+                    <Button.Label>Stop listening</Button.Label>
+                  </Button>
+                ) : null}
+                {voiceStatus.phase === 'speaking' ? (
+                  <Button variant="secondary" onPress={() => void voiceService.stopSpeaking()}>
+                    <VolumeX color={accent} size={18} />
+                    <Button.Label>Stop Fio</Button.Label>
+                  </Button>
+                ) : null}
+                {voiceStatus.phase === 'listening' || voiceStatus.phase === 'processing' ? (
+                  <Button
+                    variant="tertiary"
+                    onPress={() => voiceService.setMuted(!voiceStatus.isMuted)}
+                  >
+                    <MicOff color={accent} size={18} />
+                    <Button.Label>{voiceStatus.isMuted ? 'Unmute' : 'Mute'}</Button.Label>
+                  </Button>
+                ) : null}
+              </View>
+              <Typography className="text-muted text-sm">
+                Voice: {voiceStatus.phase === 'unconfigured' ? 'unavailable' : voiceStatus.phase}
+              </Typography>
+              {voiceStatus.youSaid ? (
+                <View className="gap-1">
+                  <Typography className="text-muted text-sm font-medium">You said</Typography>
+                  <Typography className="text-foreground text-[18px] leading-7">
+                    {voiceStatus.youSaid}
+                  </Typography>
+                </View>
+              ) : null}
+              {voiceStatus.fioSaid ? (
+                <View className="gap-1">
+                  <Typography className="text-muted text-sm font-medium">Fio said</Typography>
+                  <Typography className="text-foreground text-[18px] leading-7">
+                    {voiceStatus.fioSaid}
+                  </Typography>
+                </View>
+              ) : null}
+              {voiceStatus.message ? (
+                <Typography className="text-foreground text-sm leading-5">
+                  {voiceStatus.message}
+                </Typography>
+              ) : null}
+            </Card>
           ) : null}
 
           {active?.turns.map((turn) => (
             <View key={turn.id} className="gap-2">
-              <Typography className="text-muted text-sm font-medium">You</Typography>
+              <Typography className="text-muted text-sm font-medium">
+                {turn.role === 'user' ? 'You said' : 'Fio said'}
+              </Typography>
               <Typography className="text-foreground text-[18px] leading-7">{turn.text}</Typography>
               {turn.contextText ? (
                 <Card className="border-border bg-background-secondary border p-3">
@@ -221,6 +392,12 @@ export default function ConversationScreen() {
             <ArtifactCard
               key={`${artifact.id}-${artifact.updatedAt}`}
               artifact={artifact}
+              isSelected={
+                selectedArtifactId === artifact.id ||
+                (selectedArtifactId === null && active.artifacts[0]?.id === artifact.id)
+              }
+              onSelect={setSelectedArtifactId}
+              onRead={readArtifact}
               onSave={saveArtifact}
             />
           ))}

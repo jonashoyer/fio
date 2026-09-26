@@ -1,21 +1,9 @@
 import * as Clipboard from 'expo-clipboard';
 
-import type { Artifact, ClipboardService, VoiceService } from './types';
+import type { ClipboardService } from './types';
+import { createVoiceService } from './voice-service';
 
-export const VOICE_UNAVAILABLE_MESSAGE =
-  'Native voice is not connected yet. You can keep writing and save editable artifacts.';
-
-export class UnconfiguredVoiceService implements VoiceService {
-  readonly isConfigured = false;
-
-  async startConversation(): Promise<never> {
-    throw new Error(VOICE_UNAVAILABLE_MESSAGE);
-  }
-
-  async readArtifact(_artifact: Artifact): Promise<never> {
-    throw new Error(VOICE_UNAVAILABLE_MESSAGE);
-  }
-}
+export { VOICE_UNAVAILABLE_MESSAGE } from './voice-service';
 
 export class ExpoClipboardService implements ClipboardService {
   async copyExact(text: string): Promise<void> {
@@ -24,5 +12,5 @@ export class ExpoClipboardService implements ClipboardService {
   }
 }
 
-export const voiceService: VoiceService = new UnconfiguredVoiceService();
+export const voiceService = createVoiceService();
 export const clipboardService: ClipboardService = new ExpoClipboardService();

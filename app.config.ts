@@ -44,12 +44,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-font',
       'expo-splash-screen',
+      'expo-secure-store',
+      [
+        '@config-plugins/react-native-webrtc',
+        {
+          microphonePermission: 'Allow Fio to hear you only after you tap Talk to Fio.',
+        },
+      ],
       [
         'expo-image-picker',
         {
           photosPermission: 'Allow Fio to attach a photo of text as reference material.',
           cameraPermission: false,
-          microphonePermission: false,
+          microphonePermission: 'Allow Fio to hear you only after you tap Talk to Fio.',
         },
       ],
       ...nativePlugins,
