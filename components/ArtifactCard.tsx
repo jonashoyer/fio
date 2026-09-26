@@ -1,6 +1,6 @@
 import { Copy, RotateCcw, Volume2 } from 'lucide-react-native';
 import { Button, Card, Label, TextArea, TextField, Typography, useThemeColor } from 'heroui-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { clipboardService } from '@/lib/fio/services';
@@ -24,18 +24,33 @@ export function ArtifactCard({
   const [draft, setDraft] = useState(artifact.text);
   const [notice, setNotice] = useState<string | null>(null);
   const [frozenReadText, setFrozenReadText] = useState<string | null>(null);
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
   const [accent, muted] = useThemeColor(['accent', 'muted']);
 
-  const save = async () => {
-    if (draft === artifact.text) return;
+  const save = () => {
+    if (draft === artifact.text) return Promise.resolve(true);
+    if (savePromiseRef.current) return savePromiseRef.current;
+
     const now = new Date().toISOString();
-    const saved = await onSave({
+    const request = onSave({
       ...artifact,
       text: draft,
       previous: { text: artifact.text, savedAt: now },
       updatedAt: now,
+    })
+      .then((saved) => {
+        setNotice(saved ? 'Artifact saved.' : 'Artifact could not be saved.');
+        return saved;
+      })
+      .catch(() => {
+        setNotice('Artifact could not be saved.');
+        return false;
+      });
+    savePromiseRef.current = request;
+    void request.finally(() => {
+      if (savePromiseRef.current === request) savePromiseRef.current = null;
     });
-    setNotice(saved ? 'Artifact saved.' : 'Artifact could not be saved.');
+    return request;
   };
 
   const undo = async () => {
@@ -56,8 +71,13 @@ export function ArtifactCard({
   };
 
   const copy = async () => {
+    const snapshot = draft;
     try {
-      await clipboardService.copyExact(artifact.text);
+      if (!(await save())) {
+        setNotice('Copy stopped because the latest edit was not saved.');
+        return;
+      }
+      await clipboardService.copyExact(snapshot);
       setNotice('Copied exactly.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Copy failed.');

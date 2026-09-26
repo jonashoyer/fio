@@ -208,12 +208,22 @@ export default function ConversationScreen() {
   };
 
   const saveArtifact = async (artifact: Artifact) => {
-    if (!active) return false;
-    return persist(
-      nextThread(active, {
-        artifacts: active.artifacts.map((item) => (item.id === artifact.id ? artifact : item)),
-      }),
-    );
+    const current = activeRef.current;
+    if (!current) return false;
+    const existing = current.artifacts.find((item) => item.id === artifact.id);
+    if (!existing) return false;
+    if (
+      existing.text === artifact.text &&
+      existing.previous?.text === artifact.previous?.text &&
+      existing.previous?.savedAt === artifact.previous?.savedAt
+    ) {
+      return true;
+    }
+    const thread = nextThread(current, {
+      artifacts: current.artifacts.map((item) => (item.id === artifact.id ? artifact : item)),
+    });
+    activeRef.current = thread;
+    return persist(thread);
   };
 
   const beginNew = () => {

@@ -41,7 +41,12 @@ export function ThreadStoreProvider({ children }: PropsWithChildren) {
   const [referenceContext, setReferenceContext] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const activeRef = useRef<Thread | null>(null);
   const shouldLoadInitialDraft = useRef(true);
+  const setActiveThread = useCallback((thread: Thread | null) => {
+    activeRef.current = thread;
+    setActive(thread);
+  }, []);
   const editReferenceContext = useCallback((value: string) => {
     shouldLoadInitialDraft.current = false;
     setReferenceContext(value);
@@ -70,27 +75,30 @@ export function ThreadStoreProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
-  const open = useCallback(async (id: string) => {
-    shouldLoadInitialDraft.current = false;
-    setIsLoading(true);
-    try {
-      const thread = await threadRepository.get(id);
-      if (!thread) throw new Error('This conversation is no longer available.');
-      setActive(thread);
-      setReferenceContext(thread.referenceContext ?? '');
-      setError(null);
-    } catch (cause) {
-      setError(errorMessage(cause, 'Conversation could not be opened.'));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const open = useCallback(
+    async (id: string) => {
+      shouldLoadInitialDraft.current = false;
+      setIsLoading(true);
+      try {
+        const thread = await threadRepository.get(id);
+        if (!thread) throw new Error('This conversation is no longer available.');
+        setActiveThread(thread);
+        setReferenceContext(thread.referenceContext ?? '');
+        setError(null);
+      } catch (cause) {
+        setError(errorMessage(cause, 'Conversation could not be opened.'));
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setActiveThread],
+  );
 
   const persist = useCallback(
     async (thread: Thread) => {
       shouldLoadInitialDraft.current = false;
-      const isFirstSave = active === null;
-      setActive(thread);
+      const isFirstSave = activeRef.current === null;
+      setActiveThread(thread);
       setReferenceContext(thread.referenceContext ?? '');
       try {
         await threadRepository.save(thread);
@@ -103,15 +111,16 @@ export function ThreadStoreProvider({ children }: PropsWithChildren) {
         return false;
       }
     },
-    [active],
+    [setActiveThread],
   );
 
   const saveReferenceContext = useCallback(
     async (value: string) => {
       setReferenceContext(value);
-      if (active) {
+      const current = activeRef.current;
+      if (current) {
         return persist(
-          nextThread(active, {
+          nextThread(current, {
             referenceContext: value.trim() ? value : undefined,
           }),
         );
@@ -126,28 +135,31 @@ export function ThreadStoreProvider({ children }: PropsWithChildren) {
         return false;
       }
     },
-    [active, persist],
+    [persist],
   );
 
-  const remove = useCallback(async (id: string) => {
-    try {
-      await threadRepository.delete(id);
-      setHistory(await threadRepository.list());
-      setActive((current) => (current?.id === id ? null : current));
-      setError(null);
-    } catch (cause) {
-      setError(errorMessage(cause, 'Conversation could not be deleted.'));
-    }
-  }, []);
+  const remove = useCallback(
+    async (id: string) => {
+      try {
+        await threadRepository.delete(id);
+        setHistory(await threadRepository.list());
+        if (activeRef.current?.id === id) setActiveThread(null);
+        setError(null);
+      } catch (cause) {
+        setError(errorMessage(cause, 'Conversation could not be deleted.'));
+      }
+    },
+    [setActiveThread],
+  );
 
   const startNew = useCallback(() => {
     shouldLoadInitialDraft.current = false;
-    setActive(null);
+    setActiveThread(null);
     setReferenceContext('');
     void referenceContextDraftRepository.clear().catch((cause: unknown) => {
       setError(errorMessage(cause, 'New conversation could not be started cleanly.'));
     });
-  }, []);
+  }, [setActiveThread]);
 
   const value = useMemo<ThreadStoreValue>(
     () => ({
