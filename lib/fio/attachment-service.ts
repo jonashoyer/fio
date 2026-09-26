@@ -4,8 +4,6 @@ import { Platform } from 'react-native';
 
 import type { Attachment, AttachmentService } from './types';
 
-const attachmentDirectory = new Directory(Paths.document, 'fio-attachments');
-
 function extensionFor(asset: ImagePicker.ImagePickerAsset): string {
   const fromName = asset.fileName?.split('.').pop();
   if (fromName && /^[a-z0-9]+$/i.test(fromName)) return fromName.toLowerCase();
@@ -31,6 +29,7 @@ export class DurableImageAttachmentService implements AttachmentService {
       if (!asset.base64) throw new Error('This image could not be kept for the next visit.');
       uri = `data:${mimeType};base64,${asset.base64}`;
     } else {
+      const attachmentDirectory = new Directory(Paths.document, 'fio-attachments');
       attachmentDirectory.create({ idempotent: true, intermediates: true });
       const destination = new File(attachmentDirectory, `${id}.${extensionFor(asset)}`);
       await new File(asset.uri).copy(destination);
