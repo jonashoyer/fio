@@ -1,158 +1,64 @@
-# Welcome to your Bilt project
+# Fio app foundation
 
-[![Built with Bilt](https://img.shields.io/endpoint?url=https%3A%2F%2Fapp.bilt.me%2Fapi%2Fbadge)](https://bilt.me)
+Fio is a no-login mobile writing assistant foundation built with React Native, Expo Router, HeroUI Native, and Uniwind. This is a maintainable app base for product validation, **not a production-ready release**.
 
-## Project info
-
-**Project URL**: https://app.bilt.me/agent/478f8208-ea68-45d5-871f-7663a58b3838
-
-**Project ID**: `478f8208-ea68-45d5-871f-7663a58b3838`
-
-## How can I edit this app?
-
-There are several ways of editing your application.
-
-**Use Bilt**
-
-Simply visit your [Bilt Project](https://app.bilt.me/agent/478f8208-ea68-45d5-871f-7663a58b3838) and start sending messages. Describe what you want to change, add, or fix in natural language.
-
-Changes made via Bilt are instant - just send a message and your app updates.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can export the source code from Bilt and make changes directly.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Export and clone your Bilt project.
-# (Download source from Bilt or connect to your git repo)
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm install
-
-# Step 4: Start the Expo development server.
-npx expo start
-```
-
-Scan the QR code with Expo Go on your phone to see your app running locally.
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- React Native
-- Expo
-- TypeScript
-- AsyncStorage (local data persistence)
-- Expo Router (navigation)
-
-All generated automatically by Bilt from your natural language instructions.
-
-## How can I test this project?
-
-**Option 1: Preview in Bilt (Recommended)**
-
-Open your [Bilt Project](https://app.bilt.me/agent/478f8208-ea68-45d5-871f-7663a58b3838) and use the built-in preview.
-
-Open **Deploy & Share** to create a revocable preview link or build the app on your iPhone.
-
-**Option 2: Run Locally**
+## Run and check
 
 ```sh
 npm install
-npx expo start
+npm run ios
+npm run android
+npm run web
+
+npm run lint
+npm run lint:css
+npm run format:check
+npm run expo-check
+npm run export:web
 ```
 
-Then scan the QR code with Expo Go.
+The main preview route is `/`. History is available at `/history`.
 
-## How can I deploy this project?
+## Implemented
 
-Open your [Bilt Project](https://app.bilt.me/agent/478f8208-ea68-45d5-871f-7663a58b3838), select **Deploy & Share**, then choose **Publish to web**, **Release on App Store**, or **Release on Play Store**.
+- Every app launch opens a new, empty conversation without creating a history record.
+- A non-empty submitted turn creates one thread; later turns update that same thread.
+- User writing, optional separate context, and image reference metadata persist even when Fio cannot reply.
+- Supplied writing can be turned into a clearly labeled, editable manual artifact.
+- Artifact edits save automatically on blur or with **Save**. **Undo edit** restores the last saved artifact text.
+- **Copy** writes the selected artifact text exactly and shows success or failure.
+- History can refresh, reopen, and permanently delete saved threads.
+- Save and load errors are visible in the UI.
+- Selected screenshots/photos are copied into the app document directory before they are attached, then displayed as references after relaunch. No OCR or image interpretation is claimed.
+- Local writes are serialized, and thread revisions prevent an older save from overwriting a newer saved revision.
 
-### Deploy with Bilt
+## Deliberately unavailable
 
-Publishing to web creates a public, installable web app at its own URL. Bilt also guides you through preparing native releases for the App Store and Play Store.
+- Azure Realtime/Live native voice-to-voice is not configured. **Talk to Fio** and **Read aloud** remain visible but truthfully report this state and direct people to the working text path.
+- There are no generated Fio replies, canned corrections, browser dictation, standalone TTS, simulated delays, or listening animation.
+- There is no login, cloud sync, hosted storage, OCR, image understanding, publishing, or deployment.
+- Bilt Cloud versus an owned backend remains an open decision.
 
-## How can I make changes to my app?
+## Architecture
 
-**Via Bilt (Easiest)**
+Fio domain models and replaceable boundaries live under `lib/fio/`:
 
-Visit your [Bilt Project](https://app.bilt.me/agent/478f8208-ea68-45d5-871f-7663a58b3838) and send a message describing what you want:
+- `types.ts`: `Thread`, `Turn`, `Attachment`, and `Artifact`, plus repository, voice, clipboard, and durable attachment interfaces.
+- `local-thread-repository.ts`: isolated AsyncStorage adapter for same-device thread persistence.
+- `local-attachment-store.ts`: isolated app-document-directory image copy adapter.
+- `services.ts`: unconfigured voice adapter and exact clipboard adapter.
+- `thread-store.tsx`: UI-facing state and persistence orchestration.
 
-- "Add a dark mode toggle"
-- "Change the button color to blue"
-- "Add a new screen for user settings"
-- "Fix the navigation bar spacing"
+Screens use these interfaces rather than cloud SDKs. Credentials must remain out of the client when voice and backend integrations are added.
 
-Bilt understands natural language and updates your app automatically.
+## Local persistence limits
 
-**Via Code**
+Current storage is a foundation adapter, not a final backend decision. Data stays on the current app installation, does not sync across devices, is not shared between native and web, and can be lost when browser/site data or the app is removed. It has no account recovery, remote backup, multi-device conflict handling, encryption policy, retention policy, or server-side access controls.
 
-Export the source, make changes in your IDE, and test locally with `npx expo start`.
+Before production, verify private no-login identity and recovery semantics, backend privacy and retention, durable attachment lifecycle, offline/error behavior, native Azure voice capture/playback, interruption handling, consent, and credentials kept on a trusted server boundary.
 
-## Can I use this with the MCP protocol?
+## Backend portability
 
-Yes! Bilt is available as a remote MCP server at `https://mcp.bilt.me/mcp`.
+Published GitHub Repository sync behavior documents export of the client project. Automatic export of Bilt Cloud function/automation source, PostgreSQL schema or migrations, row-access policies, and storage-bucket definitions remains unconfirmed. Hosted data and secrets are not treated as exported source.
 
-Connect any MCP-compatible AI agent (Claude Desktop, OpenClaw, etc.) to programmatically build and modify mobile apps.
-
-**Example MCP integration:**
-
-```json
-{
-  "mcpServers": {
-    "bilt": {
-      "transport": {
-        "type": "sse",
-        "url": "https://mcp.bilt.me/mcp/sse",
-        "headers": {
-          "Authorization": "Bearer YOUR_API_KEY"
-        }
-      }
-    }
-  }
-}
-```
-
-Read more:
-
-- [Bilt MCP Documentation](https://bilt.me/docs)
-- [MCP Registry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.buildingapplications%2Fmcp/versions/latest)
-
-## Need help?
-
-- 📚 [Bilt Documentation](https://bilt.me/docs)
-- 💬 [Discord Community](https://discord.gg/3FqNgmSYdZ)
-- 🐦 [Twitter Updates](https://twitter.com/biltmeanapp)
-- 📧 Email: support@bilt.me
-
----
-
-<div align="center">
-
-**Built by AI. No code required.** ✨
-
-[Try Bilt](https://bilt.me) • [View Docs](https://bilt.me/docs) • [Docs MCP Server](https://bilt.me/docs/mcp)
-
-</div>
+When a backend is implemented, explicitly version its actual function source, migrations/schema changes, access policies, and bucket declarations in the owned repository, then check those definitions against deployed resources. Do not rely on client export as a backend backup.

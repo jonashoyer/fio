@@ -40,7 +40,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       appStoreAppId: process.env.BILT_APP_STORE_APP_ID,
     },
-    plugins: ['expo-router', 'expo-font', ...nativePlugins],
+    plugins: [
+      'expo-router',
+      'expo-font',
+      'expo-splash-screen',
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'Allow Fio to attach a photo of text as reference material.',
+          cameraPermission: false,
+          microphonePermission: false,
+        },
+      ],
+      ...nativePlugins,
+    ],
     experiments: {
       typedRoutes: true,
       reactCompiler: true,

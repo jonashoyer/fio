@@ -22,6 +22,7 @@ import {
   Stack,
 } from 'expo-router';
 
+import { ThreadStoreProvider } from '@/lib/fio/thread-store';
 import { initPostHog } from '@/lib/posthog';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
@@ -141,10 +142,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ title: 'Habits', headerShown: false }} />
-        </Stack>
-        <InstallPrompt />
+        <ThreadStoreProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="history" />
+          </Stack>
+          <InstallPrompt />
+        </ThreadStoreProvider>
       </HeroUINativeProvider>
     </GestureHandlerRootView>
   );
