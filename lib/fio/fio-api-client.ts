@@ -1,5 +1,7 @@
 const MAX_TEXT_BYTES = 128 * 1024;
 const SYNC_HEADER = 'X-Fio-Sync-Token';
+export const FIO_TOOL_CONTRACT_VERSION =
+  'fio-tools-v1:e84b0d5d4e661714212210a2f7231bbb12135cfb178ecd2b7ff570c3b5760a02';
 
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -25,9 +27,17 @@ export class FioApiError extends Error {
 }
 
 export interface VoiceSessionGrant {
-  temporaryCredential: string;
+  threadId: string | null;
+  contextRestored: false;
+  provider: 'azure';
+  transport: 'webrtc';
   callUrl: string;
-  tools: string[];
+  model: string;
+  clientSecret: {
+    value: string;
+    expiresAt: number;
+  };
+  toolContractVersion: typeof FIO_TOOL_CONTRACT_VERSION;
 }
 
 interface CredentialStore {
@@ -64,6 +74,13 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
+function requiredUnixSeconds(value: unknown, label: string): number {
+  if (!Number.isInteger(value) || typeof value !== 'number' || value <= 0) {
+    throw new Error(`The Fio API response has an invalid ${label}.`);
+  }
+  return value;
+}
+
 function assertTextLimit(value: JsonValue): void {
   const visit = (item: JsonValue): void => {
     if (typeof item === 'string' && new TextEncoder().encode(item).byteLength > MAX_TEXT_BYTES) {
@@ -85,18 +102,42 @@ function errorCode(value: unknown, status: number): FioApiErrorCode {
 }
 
 export class FioApiClient {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly credentials: CredentialStore,
-  ) {}
+  private readonly baseUrl: string;
 
-  get isConfigured(): boolean {
-    return this.baseUrl.startsWith('https://');
+  constructor(
+    private readonly credentials: CredentialStore,
+    baseUrl = process.env.EXPO_PUBLIC_FIO_API_BASE_URL ?? '',
+  ) {
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
   }
 
-  private async request(path: string, init: RequestInit, authenticated = true): Promise<unknown> {
-    if (!this.isConfigured)
-      throw new Error('Set EXPO_PUBLIC_FIO_API_BASE_URL to the private HTTPS Fio API.');
+  get isConfigured(): boolean {
+    try {
+      const url = new URL(this.baseUrl);
+      return (
+        url.protocol === 'https:' &&
+        url.username === '' &&
+        url.password === '' &&
+        url.search === '' &&
+        url.hash === '' &&
+        url.pathname.replace(/\/+$/, '') === '/api/fio'
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async request(
+    path: string,
+    init: RequestInit,
+    authenticated = true,
+    expectedStatus?: number,
+  ): Promise<unknown> {
+    if (!this.isConfigured) {
+      throw new Error(
+        'Set EXPO_PUBLIC_FIO_API_BASE_URL to the full HTTPS Fio API prefix ending in /api/fio.',
+      );
+    }
     const identity = authenticated ? await this.ensureInstallation() : null;
     const syncToken = await this.credentials.getSyncToken();
     const headers = new Headers({
@@ -122,15 +163,16 @@ export class FioApiClient {
         response.status,
       );
     }
+    if (expectedStatus !== undefined && response.status !== expectedStatus) {
+      throw new Error(`The Fio API returned ${response.status}; expected ${expectedStatus}.`);
+    }
     return body;
   }
 
   async ensureInstallation(): Promise<{ deviceId: string; credential: string }> {
     const existing = await this.credentials.getIdentity();
     if (existing) return existing;
-    const body = record(
-      await this.request('/api/fio/devices', { method: 'POST', body: '{}' }, false),
-    );
+    const body = record(await this.request('/devices', { method: 'POST', body: '{}' }, false));
     const identity = {
       deviceId: requiredString(body?.device_id, 'device_id'),
       credential: requiredString(body?.credential, 'credential'),
@@ -142,27 +184,62 @@ export class FioApiClient {
 
   async createVoiceSession(threadId?: string): Promise<VoiceSessionGrant> {
     const body = record(
-      await this.request('/api/fio/voice/sessions', {
-        method: 'POST',
-        body: JSON.stringify(threadId ? { thread_id: threadId } : {}),
-      }),
+      await this.request(
+        '/voice/sessions',
+        {
+          method: 'POST',
+          body: JSON.stringify(threadId ? { thread_id: threadId } : {}),
+        },
+        true,
+        201,
+      ),
     );
-    // These names are a fail-closed mobile handoff. The live broker must confirm them.
-    const tools = body?.tools;
-    if (!Array.isArray(tools) || !tools.every((tool) => typeof tool === 'string')) {
-      throw new Error('The voice broker did not confirm its installed tools.');
+    if (!body || body.ok !== true) {
+      throw new Error('The voice broker did not return a successful session grant.');
     }
+    if (body.context_restored !== false) {
+      throw new Error('The voice broker returned an unsupported restored context.');
+    }
+    if (body.provider !== 'azure' || body.transport !== 'webrtc') {
+      throw new Error('The voice broker returned an unsupported provider or transport.');
+    }
+    if (body.tool_contract_version !== FIO_TOOL_CONTRACT_VERSION) {
+      throw new Error('The voice broker tool contract is unavailable or unreviewed.');
+    }
+
+    const returnedThreadId = body.thread_id;
+    if (returnedThreadId !== null && typeof returnedThreadId !== 'string') {
+      throw new Error('The voice broker returned an invalid thread_id.');
+    }
+    if (threadId && returnedThreadId !== threadId) {
+      throw new Error('The voice broker returned a session for a different thread.');
+    }
+
+    const clientSecret = record(body.client_secret);
+    const expiresAt = requiredUnixSeconds(clientSecret?.expires_at, 'client_secret.expires_at');
+    if (expiresAt <= Math.floor(Date.now() / 1000)) {
+      throw new Error('The temporary voice credential has expired.');
+    }
+
     return {
-      temporaryCredential: requiredString(body?.temporary_credential, 'temporary_credential'),
-      callUrl: requiredString(body?.webrtc_call_url, 'webrtc_call_url'),
-      tools,
+      threadId: returnedThreadId,
+      contextRestored: false,
+      provider: 'azure',
+      transport: 'webrtc',
+      callUrl: requiredString(body.url, 'url'),
+      model: requiredString(body.model, 'model'),
+      clientSecret: {
+        value: requiredString(clientSecret?.value, 'client_secret.value'),
+        expiresAt,
+      },
+      toolContractVersion: FIO_TOOL_CONTRACT_VERSION,
     };
   }
 
   async createThread(operationId: string, title: string, initial: JsonObject): Promise<JsonObject> {
     assertTextLimit(initial);
     const body = record(
-      await this.request('/api/fio/threads', {
+      await this.request('/threads', {
         method: 'POST',
         body: JSON.stringify({ operation_id: operationId, title, initial }),
       }),
@@ -178,7 +255,7 @@ export class FioApiClient {
   ): Promise<JsonObject> {
     assertTextLimit(change);
     const body = record(
-      await this.request(`/api/fio/threads/${encodeURIComponent(threadId)}/operations`, {
+      await this.request(`/threads/${encodeURIComponent(threadId)}/operations`, {
         method: 'POST',
         body: JSON.stringify({ operation_id: operationId, change }),
       }),
@@ -189,7 +266,7 @@ export class FioApiClient {
 
   async getThread(threadId: string): Promise<JsonObject> {
     const body = record(
-      await this.request(`/api/fio/threads/${encodeURIComponent(threadId)}`, { method: 'GET' }),
+      await this.request(`/threads/${encodeURIComponent(threadId)}`, { method: 'GET' }),
     );
     if (!body) throw new Error('The Fio thread response was invalid.');
     return body;
@@ -197,7 +274,7 @@ export class FioApiClient {
 
   async listArtifacts(threadId: string): Promise<JsonObject> {
     const body = record(
-      await this.request(`/api/fio/threads/${encodeURIComponent(threadId)}/artifacts`, {
+      await this.request(`/threads/${encodeURIComponent(threadId)}/artifacts`, {
         method: 'GET',
       }),
     );
@@ -208,7 +285,7 @@ export class FioApiClient {
   async getArtifact(threadId: string, artifactId: string): Promise<JsonObject> {
     const body = record(
       await this.request(
-        `/api/fio/threads/${encodeURIComponent(threadId)}/artifacts/${encodeURIComponent(artifactId)}`,
+        `/threads/${encodeURIComponent(threadId)}/artifacts/${encodeURIComponent(artifactId)}`,
         { method: 'GET' },
       ),
     );
@@ -217,7 +294,7 @@ export class FioApiClient {
   }
 
   async deleteThread(threadId: string): Promise<void> {
-    await this.request(`/api/fio/threads/${encodeURIComponent(threadId)}`, { method: 'DELETE' });
+    await this.request(`/threads/${encodeURIComponent(threadId)}`, { method: 'DELETE' });
   }
 
   async invokeTool(
@@ -225,11 +302,22 @@ export class FioApiClient {
     name: string,
     argumentsValue: JsonObject,
   ): Promise<JsonObject> {
-    assertTextLimit(argumentsValue);
+    const toolArguments: JsonObject =
+      name === 'artifact_create'
+        ? {
+            operation_id: requiredString(
+              argumentsValue.operation_id,
+              'artifact_create.operation_id',
+            ),
+            title: requiredString(argumentsValue.title, 'artifact_create.title'),
+            text: requiredString(argumentsValue.text, 'artifact_create.text'),
+          }
+        : argumentsValue;
+    assertTextLimit(toolArguments);
     const body = record(
-      await this.request(`/api/fio/threads/${encodeURIComponent(threadId)}/tools`, {
+      await this.request(`/threads/${encodeURIComponent(threadId)}/tools`, {
         method: 'POST',
-        body: JSON.stringify({ name, arguments: argumentsValue }),
+        body: JSON.stringify({ name, arguments: toolArguments }),
       }),
     );
     const data = record(body?.data);

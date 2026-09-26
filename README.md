@@ -35,33 +35,30 @@ That is not enough to ship a secure voice bridge from this client alone:
 - Inline `source={{ html }}` content does not provide the trusted HTTPS origin needed for reliable microphone `getUserMedia` in WKWebView.
 - A genuine bridge therefore needs a reviewed HTTPS page hosted by the trusted Fio API origin, plus its navigation/CSP/CORS rules and a narrow native-message protocol.
 - This repository has no such hosted bridge page, and this pass does not authorize deploying one.
-- The live broker response fields, six installed tool schemas, provider event shapes, and read-aloud request event remain unconfirmed.
+- The broker response fields and contract version are now known from a tested local handoff, but that corrected broker is not deployed; provider event shapes and the read-aloud request event remain unconfirmed.
 - Passing the installation credential or arbitrary instructions/tools into an unrelated page would violate the trust boundary.
 
 For those reasons no WebView voice bridge was added and no speech is simulated. The default native entrypoint deliberately has no `react-native-webrtc` import, so Expo Go can load the manual app. A physical iPhone has not proven microphone capture, Azure WebRTC, data-channel tools, or playback.
 
-## Required private configuration for future broker work
+## Dormant broker configuration
 
-The API client reads only:
+The dormant API client reads a configurable full API prefix:
 
 ```sh
-EXPO_PUBLIC_FIO_API_BASE_URL=https://your-private-fio-api.example
+EXPO_PUBLIC_FIO_API_BASE_URL=https://fioai.vercel.app/api/fio
 ```
 
-This is a public **URL**, not a secret. Long-lived Azure and Redis credentials stay on the Next.js server. Do not add them to Expo environment variables or the client bundle.
+This is a public URL, not a secret, and it is not a live-voice enablement flag. Voice remains unavailable because the five server-side `FIO_*` Production settings are absent and the corrected broker contract is not deployed. Long-lived Azure and Redis credentials stay on the Next.js server and must never be added to Expo environment variables or the client bundle.
 
-The existing fail-closed parser expects the backend owner to confirm the voice-session response and exactly these trusted server-installed capabilities:
+The dormant adapter now fail-closes unless `POST /voice/sessions` returns HTTP `201` with the tested Azure WebRTC fields and this exact nonsecret contract version:
 
 ```text
-artifact_list
-artifact_read
-artifact_create
-artifact_update
-artifact_undo
-artifact_select
+fio-tools-v1:e84b0d5d4e661714212210a2f7231bbb12135cfb178ecd2b7ff570c3b5760a02
 ```
 
-The client does not install session instructions, tool schemas, or an arbitrary model prompt. The supplied thread API also does not yet confirm the JSON shape of `initial`/`change`, remote thread-ID mapping, session tool arguments, or trusted read-aloud event.
+It does not accept obsolete SDP/Live fields, client-installed instructions, or arbitrary tool schemas. The generic `artifact_create` backend call sends only `operation_id`, `title`, and `text`; it does not send a local artifact `kind`. The other backend tools remain `artifact_list`, `artifact_read`, `artifact_update`, and `artifact_undo`, while `artifact_select` remains local.
+
+The local product still distinguishes message, reply, notes, and document artifacts. Because the tested generic backend create contract does not preserve those distinct kinds, full PRD acceptance remains blocked on a broader backend contract decision. The supplied thread API also does not yet confirm the JSON shape of `initial`/`change`, remote thread-ID mapping, provider event protocol, or trusted read-aloud event.
 
 ## Local persistence limits
 
