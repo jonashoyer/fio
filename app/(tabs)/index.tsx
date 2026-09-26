@@ -451,7 +451,7 @@ export default function ConversationScreen() {
 
           {active?.artifacts.map((artifact) => (
             <ArtifactCard
-              key={`${artifact.id}-${artifact.updatedAt}`}
+              key={artifact.id}
               artifact={artifact}
               isSelected={
                 selectedArtifactId === artifact.id ||

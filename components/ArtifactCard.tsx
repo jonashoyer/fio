@@ -22,10 +22,16 @@ export function ArtifactCard({
   onSave,
 }: ArtifactCardProps) {
   const [draft, setDraft] = useState(artifact.text);
+  const [draftSourceText, setDraftSourceText] = useState(artifact.text);
   const [notice, setNotice] = useState<string | null>(null);
   const [frozenReadText, setFrozenReadText] = useState<string | null>(null);
   const savePromiseRef = useRef<Promise<boolean> | null>(null);
   const [accent, muted] = useThemeColor(['accent', 'muted']);
+
+  if (artifact.text !== draftSourceText) {
+    setDraftSourceText(artifact.text);
+    setDraft(artifact.text);
+  }
 
   const save = () => {
     if (draft === artifact.text) return Promise.resolve(true);
