@@ -26,6 +26,7 @@ import { useRouter } from 'expo-router';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { FioBird } from '@/components/FioBird';
 import { LinearGradient } from '@/components/ui/primitives/LinearGradient';
+import { SafeAreaView } from '@/components/ui/primitives/SafeAreaView';
 import { attachmentService } from '@/lib/fio/attachment-service';
 import { VOICE_UNAVAILABLE_MESSAGE, voiceService } from '@/lib/fio/services';
 import {
@@ -249,7 +250,7 @@ export default function ConversationScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={88}
     >
-      <View className="mx-auto w-full max-w-3xl flex-1">
+      <SafeAreaView edges={['top']} className="mx-auto w-full max-w-3xl flex-1">
         {!active ? (
           <LinearGradient
             colors={['#F8F7F4', '#F4B58E', '#9DD9D0', '#F8F7F4']}
@@ -556,17 +557,12 @@ export default function ConversationScreen() {
               <ImagePlus color={accent} size={18} />
               <Button.Label>Photo of text</Button.Label>
             </Button>
-            <Button
-              size="md"
-              variant="secondary"
-              onPress={() => void makeArtifact()}
-              isDisabled={!text.trim()}
-            >
-              <Button.Label>Make artifact</Button.Label>
+            <Button size="md" onPress={() => void makeArtifact()} isDisabled={!text.trim()}>
+              <Button.Label className="text-white">Make artifact</Button.Label>
             </Button>
           </View>
         </View>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

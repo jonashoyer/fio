@@ -22,29 +22,29 @@ export function ArtifactCard({
   onSave,
 }: ArtifactCardProps) {
   const [draft, setDraft] = useState(artifact.text);
-  const [draftSourceText, setDraftSourceText] = useState(artifact.text);
   const [notice, setNotice] = useState<string | null>(null);
   const [frozenReadText, setFrozenReadText] = useState<string | null>(null);
-  const savePromiseRef = useRef<Promise<boolean> | null>(null);
+  const draftRef = useRef(artifact.text);
+  const savedArtifactRef = useRef(artifact);
+  const savePromiseRef = useRef<{ text: string; promise: Promise<boolean> } | null>(null);
   const [accent, muted] = useThemeColor(['accent', 'muted']);
 
-  if (artifact.text !== draftSourceText) {
-    setDraftSourceText(artifact.text);
-    setDraft(artifact.text);
-  }
-
-  const save = () => {
-    if (draft === artifact.text) return Promise.resolve(true);
-    if (savePromiseRef.current) return savePromiseRef.current;
+  const saveSnapshot = async (snapshot: string): Promise<boolean> => {
+    const pendingSave = savePromiseRef.current;
+    if (pendingSave?.text === snapshot) return pendingSave.promise;
+    if (pendingSave) await pendingSave.promise;
+    if (snapshot === savedArtifactRef.current.text) return true;
 
     const now = new Date().toISOString();
-    const request = onSave({
-      ...artifact,
-      text: draft,
-      previous: { text: artifact.text, savedAt: now },
+    const updatedArtifact: Artifact = {
+      ...savedArtifactRef.current,
+      text: snapshot,
+      previous: { text: savedArtifactRef.current.text, savedAt: now },
       updatedAt: now,
-    })
+    };
+    const promise = onSave(updatedArtifact)
       .then((saved) => {
+        if (saved) savedArtifactRef.current = updatedArtifact;
         setNotice(saved ? 'Artifact saved.' : 'Artifact could not be saved.');
         return saved;
       })
@@ -52,12 +52,15 @@ export function ArtifactCard({
         setNotice('Artifact could not be saved.');
         return false;
       });
-    savePromiseRef.current = request;
-    void request.finally(() => {
-      if (savePromiseRef.current === request) savePromiseRef.current = null;
-    });
-    return request;
+    savePromiseRef.current = { text: snapshot, promise };
+    try {
+      return await promise;
+    } finally {
+      if (savePromiseRef.current?.promise === promise) savePromiseRef.current = null;
+    }
   };
+
+  const save = () => saveSnapshot(draftRef.current);
 
   const undo = async () => {
     if (!artifact.previous) return;
@@ -69,6 +72,8 @@ export function ArtifactCard({
       updatedAt: new Date().toISOString(),
     });
     if (saved) {
+      draftRef.current = previousText;
+      savedArtifactRef.current = { ...artifact, text: previousText, previous: undefined };
       setDraft(previousText);
       setNotice('Last artifact edit undone.');
     } else {
@@ -77,14 +82,12 @@ export function ArtifactCard({
   };
 
   const copy = async () => {
-    const snapshot = draft;
+    const snapshot = draftRef.current;
+    const copyRequest = clipboardService.copyExact(snapshot);
+    const saveRequest = saveSnapshot(snapshot);
     try {
-      if (!(await save())) {
-        setNotice('Copy stopped because the latest edit was not saved.');
-        return;
-      }
-      await clipboardService.copyExact(snapshot);
-      setNotice('Copied exactly.');
+      const [saved] = await Promise.all([saveRequest, copyRequest]);
+      setNotice(saved ? 'Copied exactly.' : 'Copied, but the latest edit could not be saved.');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Copy failed.');
     }
@@ -124,7 +127,10 @@ export function ArtifactCard({
         <Label className="sr-only">{artifact.title} text</Label>
         <TextArea
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={(text) => {
+            draftRef.current = text;
+            setDraft(text);
+          }}
           onBlur={() => void save()}
           className="min-h-32 text-[18px] leading-7"
           accessibilityLabel={`${artifact.title} text`}
