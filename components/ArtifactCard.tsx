@@ -1,7 +1,7 @@
 import { Copy, RotateCcw, Volume2 } from 'lucide-react-native';
-import { Button, Card, Label, TextArea, TextField, Typography, useThemeColor } from 'heroui-native';
+import { Button, Typography, useThemeColor } from 'heroui-native';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 import { clipboardService } from '@/lib/fio/services';
 import type { Artifact, VoiceArtifactSnapshot } from '@/lib/fio/types';
@@ -119,37 +119,38 @@ export function ArtifactCard({
   };
 
   return (
-    <Card
+    <View
       className={
         isSelected
-          ? 'border-accent bg-artifact-selected gap-4 border p-4'
-          : 'border-border bg-surface gap-4 border p-4'
+          ? 'border-accent bg-background gap-4 border-y px-5 py-6'
+          : 'border-border bg-background gap-4 border-y px-5 py-6'
       }
     >
       <View className="flex-row items-center justify-between gap-3">
         <Typography className="text-foreground font-semibold">{artifact.title}</Typography>
-        <Button
-          size="md"
-          variant={isSelected ? 'secondary' : 'tertiary'}
-          onPress={() => onSelect(artifact.id)}
-          accessibilityLabel={`${isSelected ? 'Selected' : 'Select'} ${artifact.title}`}
-        >
-          <Button.Label>{isSelected ? 'Selected' : 'Select'}</Button.Label>
-        </Button>
+        {!isSelected ? (
+          <Button
+            size="md"
+            variant="tertiary"
+            onPress={() => onSelect(artifact.id)}
+            accessibilityLabel={`Select ${artifact.title}`}
+          >
+            <Button.Label>Select</Button.Label>
+          </Button>
+        ) : null}
       </View>
-      <TextField>
-        <Label className="sr-only">{artifact.title} text</Label>
-        <TextArea
-          value={draft}
-          onChangeText={(text) => {
-            draftRef.current = text;
-            setDraft(text);
-          }}
-          onBlur={() => void save()}
-          className="min-h-32 text-[18px] leading-7"
-          accessibilityLabel={`${artifact.title} text`}
-        />
-      </TextField>
+      <TextInput
+        value={draft}
+        onChangeText={(text) => {
+          draftRef.current = text;
+          setDraft(text);
+        }}
+        onBlur={() => void save()}
+        multiline
+        className="text-foreground min-h-32 bg-transparent text-[18px] leading-7"
+        style={{ padding: 0, borderWidth: 0, borderRadius: 0, textAlignVertical: 'top' }}
+        accessibilityLabel={`${artifact.title} text`}
+      />
       {isSelected ? (
         <View className="flex-row flex-wrap gap-2">
           <Button
@@ -183,12 +184,12 @@ export function ArtifactCard({
         </View>
       ) : null}
       {isSelected && frozenReadText !== null ? (
-        <Card className="bg-background-secondary gap-1 p-3">
+        <View className="border-border gap-1 border-t pt-3">
           <Typography className="text-muted text-sm font-medium">Frozen read-aloud text</Typography>
           <Typography className="text-foreground text-base leading-6">{frozenReadText}</Typography>
-        </Card>
+        </View>
       ) : null}
       {notice ? <Typography className="text-muted text-sm">{notice}</Typography> : null}
-    </Card>
+    </View>
   );
 }

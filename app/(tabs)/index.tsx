@@ -8,7 +8,6 @@ import {
   Plus,
   Send,
   Square,
-  VolumeX,
   X,
 } from 'lucide-react-native';
 import { Button, Card, Input, Label, TextField, Typography, useThemeColor } from 'heroui-native';
@@ -28,7 +27,6 @@ import { useRouter } from 'expo-router';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { LiveBridgeHost } from '@/components/LiveBridgeHost';
 import { FioBird } from '@/components/FioBird';
-import { LinearGradient } from '@/components/ui/primitives/LinearGradient';
 import { SafeAreaView } from '@/components/ui/primitives/SafeAreaView';
 import { attachmentService } from '@/lib/fio/attachment-service';
 import { FioApiClient } from '@/lib/fio/fio-api-client';
@@ -210,8 +208,9 @@ export default function ConversationScreen() {
     const pendingText = text;
     const pendingAttachments = attachments;
     const current = activeRef.current;
-    const selected = current?.artifacts.find(({ id }) => id === selectedArtifactIdRef.current)
-      ?? current?.artifacts[0];
+    const selected =
+      current?.artifacts.find(({ id }) => id === selectedArtifactIdRef.current) ??
+      current?.artifacts[0];
     try {
       const turn = createUserTurn(pendingText.trim() || 'Photo', pendingAttachments);
       const thread = current
@@ -237,7 +236,9 @@ export default function ConversationScreen() {
         return;
       }
       if (!textComposeEnabled) {
-        setNotice('Added to this conversation. Fio text replies are unavailable until the server is ready.');
+        setNotice(
+          'Added to this conversation. Fio text replies are unavailable until the server is ready.',
+        );
         return;
       }
       const result = await textApi.composeText(pendingText.trim(), selected?.text ?? null);
@@ -245,19 +246,29 @@ export default function ConversationScreen() {
       const latest = activeRef.current;
       const target = selected && latest.artifacts.find(({ id }) => id === selected.id);
       if (result.action === 'update' && !target) {
-        setNotice('Fio returned an edit for a draft that is no longer here. Your writing is saved.');
+        setNotice(
+          'Fio returned an edit for a draft that is no longer here. Your writing is saved.',
+        );
         return;
       }
-      const artifact = result.action === 'update' && target
-        ? { ...target, text: result.artifact, updatedAt: new Date().toISOString(),
-            previous: target.text === result.artifact ? target.previous
-              : { text: target.text, savedAt: new Date().toISOString() } }
-        : createArtifact(result.artifact, 'message');
+      const artifact =
+        result.action === 'update' && target
+          ? {
+              ...target,
+              text: result.artifact,
+              updatedAt: new Date().toISOString(),
+              previous:
+                target.text === result.artifact
+                  ? target.previous
+                  : { text: target.text, savedAt: new Date().toISOString() },
+            }
+          : createArtifact(result.artifact, 'message');
       const completed = nextThread(latest, {
         turns: [...latest.turns, createFioTurn(result.reply)],
-        artifacts: result.action === 'update' && target
-          ? latest.artifacts.map((item) => item.id === target.id ? artifact : item)
-          : [...latest.artifacts, artifact],
+        artifacts:
+          result.action === 'update' && target
+            ? latest.artifacts.map((item) => (item.id === target.id ? artifact : item))
+            : [...latest.artifacts, artifact],
       });
       activeRef.current = completed;
       if (!(await persist(completed))) {
@@ -265,12 +276,18 @@ export default function ConversationScreen() {
         return;
       }
       if (result.action === 'create') selectArtifact(artifact.id);
-      setNotice(pendingAttachments.length ? 'Fio used your text. The photo was saved but not analyzed.' : null);
+      setNotice(
+        pendingAttachments.length
+          ? 'Fio used your text. The photo was saved but not analyzed.'
+          : null,
+      );
     } catch (cause) {
       if (generation === sendGenerationRef.current) {
-        setNotice(cause instanceof Error
-          ? `Fio could not finish: ${cause.message}. Your words are saved; try again.`
-          : 'Fio could not finish. Your words are saved; try again.');
+        setNotice(
+          cause instanceof Error
+            ? `Fio could not finish: ${cause.message}. Your words are saved; try again.`
+            : 'Fio could not finish. Your words are saved; try again.',
+        );
       }
     } finally {
       sendingRef.current = false;
@@ -350,42 +367,16 @@ export default function ConversationScreen() {
       keyboardVerticalOffset={88}
     >
       <SafeAreaView edges={['top']} className="mx-auto w-full max-w-3xl flex-1">
-        {!active ? (
-          <LinearGradient
-            colors={['#F8F7F4', '#F4B58E', '#9DD9D0', '#F8F7F4']}
-            locations={[0, 0.2, 0.76, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            className="relative h-[185px] overflow-hidden rounded-b-[28px]"
-          >
-            <View className="bg-background absolute top-[18px] left-[18px] h-[75px] w-[75px] items-center justify-center rounded-full">
-              <FioBird size={50} />
-            </View>
-            <View className="absolute top-6 left-[109px] gap-0.5">
+        <View className="border-border flex-row items-center justify-between border-b px-5 py-3">
+          <View className="flex-row items-center gap-3">
+            <FioBird size={24} />
+            <View>
               <Typography className="text-foreground text-2xl font-semibold">Fio</Typography>
-              <Typography className="text-foreground text-sm">AI writing companion</Typography>
+              <Typography className="text-muted text-sm">AI writing companion</Typography>
             </View>
-            <Button
-              isIconOnly
-              size="md"
-              variant="tertiary"
-              className="absolute top-[18px] right-[18px]"
-              onPress={() => router.push('/history')}
-              accessibilityLabel="History"
-            >
-              <History color={accent} size={21} />
-            </Button>
-          </LinearGradient>
-        ) : (
-          <View className="flex-row items-center justify-between px-5 py-3">
-            <View className="flex-row items-center gap-3">
-              <FioBird size={24} />
-              <View>
-                <Typography className="text-foreground text-xl font-semibold">Fio</Typography>
-                <Typography className="text-muted text-xs">AI writing companion</Typography>
-              </View>
-            </View>
-            <View className="flex-row gap-2">
+          </View>
+          <View className="flex-row gap-2">
+            {active ? (
               <Button
                 isIconOnly
                 size="md"
@@ -395,18 +386,18 @@ export default function ConversationScreen() {
               >
                 <Plus color={accent} size={22} />
               </Button>
-              <Button
-                isIconOnly
-                size="md"
-                variant="tertiary"
-                onPress={() => router.push('/history')}
-                accessibilityLabel="History"
-              >
-                <History color={accent} size={21} />
-              </Button>
-            </View>
+            ) : null}
+            <Button
+              isIconOnly
+              size="md"
+              variant="tertiary"
+              onPress={() => router.push('/history')}
+              accessibilityLabel="History"
+            >
+              <History color={accent} size={21} />
+            </Button>
           </View>
-        )}
+        </View>
 
         <LiveBridgeHost />
         <ScrollView
@@ -416,10 +407,10 @@ export default function ConversationScreen() {
           keyboardDismissMode="on-drag"
         >
           {isSending ? (
-            <Card className="bg-fio-bubble flex-row items-center gap-3 border-0 p-4" accessibilityLiveRegion="polite">
-              <ActivityIndicator color={accent} />
-              <Typography className="text-foreground text-base">Fio is working on your words…</Typography>
-            </Card>
+            <View className="flex-row items-center gap-2" accessibilityLiveRegion="polite">
+              <ActivityIndicator color={accent} size="small" />
+              <Typography className="text-muted text-sm">Fio is working on your words…</Typography>
+            </View>
           ) : null}
           {!active && !voiceInProgress && voiceStatus.phase !== 'error' ? (
             <View className="min-h-[300px] flex-1 items-center justify-center gap-6 py-8">
@@ -437,70 +428,35 @@ export default function ConversationScreen() {
               </Button>
             </View>
           ) : null}
-          {active || voiceInProgress || voiceStatus.phase === 'error' ? (
-            <Card className="bg-fio-bubble gap-3 border-0 p-4">
-              <View className="flex-row flex-wrap items-center gap-2">
-                {(voiceStatus.phase === 'idle' ||
-                  voiceStatus.phase === 'stopped' ||
-                  voiceStatus.phase === 'error' ||
-                  voiceStatus.phase === 'unconfigured') &&
-                active ? (
-                  <Button onPress={() => void talk()} accessibilityLabel="Talk to Fio">
-                    <Mic color="#FFFFFF" size={20} />
-                    <Button.Label>Talk to Fio</Button.Label>
-                  </Button>
-                ) : null}
-                {voiceStatus.phase === 'connecting' ||
-                voiceStatus.phase === 'listening' ||
-                voiceStatus.phase === 'processing' ? (
-                  <Button
-                    variant="secondary"
-                    className="min-h-12 border border-[#4338CA] bg-[#F8F7F4]"
-                    onPress={() => void voiceService.stopListening()}
-                    accessibilityLabel="Stop listening"
-                  >
-                    <Square color={accent} size={18} />
-                    <Button.Label>Stop listening</Button.Label>
-                  </Button>
-                ) : null}
-                {voiceStatus.phase === 'speaking' ? (
-                  <Button
-                    variant="secondary"
-                    className="min-h-12 border border-[#4338CA] bg-[#F8F7F4]"
-                    onPress={() => void voiceService.stopSpeaking()}
-                    accessibilityLabel="Stop Fio"
-                  >
-                    <VolumeX color={accent} size={18} />
-                    <Button.Label className="text-[#4338CA]">Stop Fio</Button.Label>
-                  </Button>
-                ) : null}
-                {voiceStatus.phase === 'listening' || voiceStatus.phase === 'processing' ? (
-                  <Button
-                    variant="tertiary"
-                    onPress={() => voiceService.setMuted(!voiceStatus.isMuted)}
-                  >
-                    <MicOff color={accent} size={18} />
-                    <Button.Label>{voiceStatus.isMuted ? 'Unmute' : 'Mute'}</Button.Label>
-                  </Button>
-                ) : null}
-              </View>
-              <Typography className="text-foreground text-sm" accessibilityLiveRegion="polite">
-                {voiceStatus.phase === 'unconfigured'
-                  ? 'Voice unavailable. You can type below.'
-                  : voiceStatus.phase === 'connecting'
-                    ? 'Connecting to Fio…'
-                    : voiceStatus.phase === 'listening'
-                      ? 'Listening. Tap to stop.'
-                      : voiceStatus.phase === 'processing'
-                        ? 'Fio is working on your words.'
-                        : voiceStatus.phase === 'speaking'
-                          ? 'Fio is speaking.'
-                          : voiceStatus.phase === 'error'
-                            ? 'Voice needs attention. You can type below.'
-                            : voiceStatus.phase === 'stopped'
-                              ? 'Voice stopped.'
-                              : 'Ready to talk.'}
+          {voiceInProgress || voiceStatus.phase === 'error' ? (
+            <View className="gap-3">
+              <Typography className="sr-only" accessibilityLiveRegion="polite">
+                {voiceStatus.phase === 'listening'
+                  ? 'Listening'
+                  : voiceStatus.phase === 'speaking'
+                    ? 'Fio is speaking'
+                    : voiceStatus.phase === 'processing'
+                      ? 'Fio is working'
+                      : voiceStatus.phase === 'connecting'
+                        ? 'Connecting to Fio'
+                        : 'Voice needs attention'}
               </Typography>
+              {voiceStatus.phase === 'connecting' ||
+              voiceStatus.phase === 'processing' ||
+              voiceStatus.phase === 'error' ? (
+                <View className="flex-row items-center gap-2">
+                  {voiceStatus.phase !== 'error' ? (
+                    <ActivityIndicator color={accent} size="small" />
+                  ) : null}
+                  <Typography className="text-muted text-sm" accessibilityLiveRegion="polite">
+                    {voiceStatus.phase === 'error'
+                      ? (voiceStatus.message ?? 'Voice needs attention. You can type below.')
+                      : voiceStatus.phase === 'connecting'
+                        ? 'Connecting to Fio…'
+                        : 'Fio is working on your words…'}
+                  </Typography>
+                </View>
+              ) : null}
               {voiceStatus.youSaid ? (
                 <View className="items-end gap-1">
                   <Typography className="text-muted text-sm font-medium">You said</Typography>
@@ -524,12 +480,7 @@ export default function ConversationScreen() {
                   </View>
                 </View>
               ) : null}
-              {voiceStatus.message && voiceStatus.phase !== 'unconfigured' ? (
-                <Typography className="text-foreground text-sm leading-5">
-                  {voiceStatus.message}
-                </Typography>
-              ) : null}
-            </Card>
+            </View>
           ) : null}
 
           {active?.turns.map((turn) => (
@@ -585,17 +536,18 @@ export default function ConversationScreen() {
           ))}
 
           {active?.artifacts.map((artifact) => (
-            <ArtifactCard
-              key={artifact.id}
-              artifact={artifact}
-              isSelected={
-                selectedArtifactId === artifact.id ||
-                (selectedArtifactId === null && active.artifacts[0]?.id === artifact.id)
-              }
-              onSelect={selectArtifact}
-              onRead={readArtifact}
-              onSave={saveArtifact}
-            />
+            <View key={artifact.id} style={{ marginHorizontal: -20 }}>
+              <ArtifactCard
+                artifact={artifact}
+                isSelected={
+                  selectedArtifactId === artifact.id ||
+                  (selectedArtifactId === null && active.artifacts[0]?.id === artifact.id)
+                }
+                onSelect={selectArtifact}
+                onRead={readArtifact}
+                onSave={saveArtifact}
+              />
+            </View>
           ))}
         </ScrollView>
 
@@ -692,10 +644,57 @@ export default function ConversationScreen() {
               ) : (
                 <Send color="#FFFFFF" size={20} />
               )}
-              <Button.Label>{isSending ? 'Working' : voiceInProgress ? 'Add text' : 'Send'}</Button.Label>
+              <Button.Label>
+                {isSending ? 'Working' : voiceInProgress ? 'Add text' : 'Send'}
+              </Button.Label>
             </Button>
           </View>
           <View className="flex-row flex-wrap gap-2">
+            {!voiceInProgress && (active || voiceStatus.phase === 'error') ? (
+              <Button
+                size="md"
+                variant="tertiary"
+                onPress={() => void talk()}
+                accessibilityLabel="Talk to Fio"
+              >
+                <Mic color={accent} size={18} />
+                <Button.Label>Talk to Fio</Button.Label>
+              </Button>
+            ) : null}
+            {voiceInProgress ? (
+              <Button
+                size="md"
+                variant="tertiary"
+                onPress={() =>
+                  void (voiceStatus.phase === 'speaking'
+                    ? voiceService.stopSpeaking()
+                    : voiceService.stopListening())
+                }
+                accessibilityLabel={
+                  voiceStatus.phase === 'speaking' ? 'Stop Fio' : 'Stop listening'
+                }
+              >
+                <Square color={accent} size={18} />
+                <Button.Label>Stop</Button.Label>
+              </Button>
+            ) : null}
+            {voiceStatus.phase === 'listening' ||
+            voiceStatus.phase === 'processing' ||
+            voiceStatus.phase === 'speaking' ? (
+              <Button
+                size="md"
+                variant="tertiary"
+                onPress={() => voiceService.setMuted(!voiceStatus.isMuted)}
+                accessibilityLabel={voiceStatus.isMuted ? 'Unmute voice' : 'Mute voice'}
+              >
+                {voiceStatus.isMuted ? (
+                  <Mic color={accent} size={18} />
+                ) : (
+                  <MicOff color={accent} size={18} />
+                )}
+                <Button.Label>{voiceStatus.isMuted ? 'Unmute' : 'Mute'}</Button.Label>
+              </Button>
+            ) : null}
             <Button size="md" variant="tertiary" onPress={() => void pickImage()}>
               <ImagePlus color={accent} size={18} />
               <Button.Label>Add photo</Button.Label>
