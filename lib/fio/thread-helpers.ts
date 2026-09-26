@@ -1,9 +1,10 @@
+import * as Crypto from 'expo-crypto';
 import type { Artifact, ArtifactKind, Attachment, Thread, Turn } from './types';
 
 export function createThread(firstTurn: Turn): Thread {
   const now = firstTurn.createdAt;
   return {
-    id: crypto.randomUUID(),
+    id: Crypto.randomUUID(),
     title: firstTurn.text.trim().slice(0, 48) || 'Writing',
     turns: [firstTurn],
     attachments: [],
@@ -24,7 +25,7 @@ export function createFioTurn(text: string): Turn {
 
 function createTurn(role: Turn['role'], text: string, attachments: Attachment[]): Turn {
   return {
-    id: crypto.randomUUID(),
+    id: Crypto.randomUUID(),
     role,
     text: text.trim(),
     attachmentIds: attachments.map(({ id }) => id),
@@ -35,7 +36,7 @@ function createTurn(role: Turn['role'], text: string, attachments: Attachment[])
 export function createArtifact(text: string, kind: ArtifactKind = 'notes'): Artifact {
   const now = new Date().toISOString();
   return {
-    id: crypto.randomUUID(),
+    id: Crypto.randomUUID(),
     kind,
     title:
       kind === 'notes'

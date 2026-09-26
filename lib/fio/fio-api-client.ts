@@ -9,13 +9,7 @@ export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
-export type FioApiErrorCode =
-  | 'operation_cancelled'
-  | 'unauthorized'
-  | 'capacity'
-  | 'idempotency_conflict'
-  | 'idempotency_mismatch'
-  | 'unknown';
+export type FioApiErrorCode = string;
 
 export class FioApiError extends Error {
   constructor(
@@ -23,6 +17,7 @@ export class FioApiError extends Error {
     readonly code: FioApiErrorCode,
     readonly operationId: string | null,
     readonly status: number,
+    readonly outcome: 'not_applied' | 'unknown',
   ) {
     super(message);
   }
@@ -88,9 +83,7 @@ function assertTextLimit(value: JsonValue): void {
 }
 
 function errorCode(value: unknown, status: number): FioApiErrorCode {
-  if (value === 'operation_cancelled' || value === 'unauthorized' || value === 'capacity')
-    return value;
-  if (value === 'idempotency_conflict' || value === 'idempotency_mismatch') return value;
+  if (typeof value === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(value)) return value;
   if (status === 401 || status === 403) return 'unauthorized';
   if (status === 429 || status === 503) return 'capacity';
   return 'unknown';
@@ -156,6 +149,7 @@ export class FioApiClient {
         errorCode(codeValue, response.status),
         typeof operationId === 'string' ? operationId : null,
         response.status,
+        data?.outcome === 'not_applied' ? 'not_applied' : 'unknown',
       );
     }
     if (expectedStatus !== undefined && response.status !== expectedStatus) {
@@ -236,6 +230,34 @@ export class FioApiClient {
       toolContractStatus: body.tool_contract_status,
       credentialExpiresAt: null,
     };
+  }
+
+  async composeText(message: string, currentDraft: string | null): Promise<{
+    action: 'create' | 'update';
+    reply: string;
+    artifact: string;
+  }> {
+    assertTextLimit(message);
+    if (currentDraft !== null) assertTextLimit(currentDraft);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let body: JsonObject | null;
+    try {
+      body = record(await this.request('/text/compose', {
+        method: 'POST',
+        body: JSON.stringify({ message, current_draft: currentDraft }),
+        signal: controller.signal,
+      }));
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!body || body.ok !== true ||
+      (body.action !== 'create' && body.action !== 'update') ||
+      typeof body.reply !== 'string' || !body.reply.trim() ||
+      typeof body.artifact !== 'string' || !body.artifact.trim()) {
+      throw new Error('Fio returned an incomplete writing result.');
+    }
+    return { action: body.action, reply: body.reply, artifact: body.artifact };
   }
 
   async createThread(operationId: string, title: string, initial: JsonObject): Promise<JsonObject> {
@@ -324,6 +346,11 @@ export class FioApiClient {
     );
     const data = record(body?.data);
     if (!data) throw new Error('The Fio tool response is missing confirmed persistence data.');
-    return data;
+    return {
+      ...data,
+      replayed: body?.replayed === true,
+      operation_id: typeof body?.operation_id === 'string' ? body.operation_id : null,
+      thread_id: typeof body?.thread_id === 'string' ? body.thread_id : threadId,
+    };
   }
 }

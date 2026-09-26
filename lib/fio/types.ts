@@ -86,6 +86,8 @@ export interface VoiceArtifactSnapshot {
 
 export interface VoiceSessionContext {
   getThreadId: () => string | undefined;
+  getThreadSnapshot: () => Thread | null;
+  getSelectedArtifactId: () => string | null;
   getArtifacts: () => readonly Artifact[];
   onSelectArtifact: (artifactId: string) => void;
   onFinalUserTranscript: (text: string) => Promise<void>;
@@ -101,6 +103,7 @@ export interface VoiceService {
   stopListening(): Promise<void>;
   stopSpeaking(): Promise<void>;
   setMuted(muted: boolean): void;
+  selectionChanged?(): void;
   readArtifact(snapshot: VoiceArtifactSnapshot, context: VoiceSessionContext): Promise<void>;
   disconnect(): Promise<void>;
 }

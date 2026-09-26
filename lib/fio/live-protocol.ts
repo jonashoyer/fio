@@ -49,6 +49,7 @@ function isJsonValue(value: unknown): value is JsonValue {
 
 function unwrapResponseEvent(envelope: unknown): JsonObject | null {
   if (!isJsonObject(envelope)) return null;
+  if (envelope.type === 'response.event' && isJsonObject(envelope.event)) return envelope.event;
   const response = isJsonObject(envelope.response) ? envelope.response : null;
   return isJsonObject(response?.event) ? response.event : envelope;
 }

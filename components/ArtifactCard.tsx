@@ -1,6 +1,6 @@
 import { Copy, RotateCcw, Volume2 } from 'lucide-react-native';
 import { Button, Card, Label, TextArea, TextField, Typography, useThemeColor } from 'heroui-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { clipboardService } from '@/lib/fio/services';
@@ -29,6 +29,17 @@ export function ArtifactCard({
   const savePromiseRef = useRef<{ text: string; promise: Promise<boolean> } | null>(null);
   const [accent, muted] = useThemeColor(['accent', 'muted']);
 
+  useEffect(() => {
+    const previousSavedText = savedArtifactRef.current.text;
+    savedArtifactRef.current = artifact;
+    // A voice or history update replaces the displayed text only when the user
+    // has no unsaved typing. The next local save uses the latest artifact as its base.
+    if (draftRef.current === previousSavedText) {
+      draftRef.current = artifact.text;
+      setDraft(artifact.text);
+    }
+  }, [artifact]);
+
   const saveSnapshot = async (snapshot: string): Promise<boolean> => {
     const pendingSave = savePromiseRef.current;
     if (pendingSave?.text === snapshot) return pendingSave.promise;
@@ -36,15 +47,18 @@ export function ArtifactCard({
     if (snapshot === savedArtifactRef.current.text) return true;
 
     const now = new Date().toISOString();
+    const baseArtifact = savedArtifactRef.current;
     const updatedArtifact: Artifact = {
-      ...savedArtifactRef.current,
+      ...baseArtifact,
       text: snapshot,
-      previous: { text: savedArtifactRef.current.text, savedAt: now },
+      previous: { text: baseArtifact.text, savedAt: now },
       updatedAt: now,
     };
     const promise = onSave(updatedArtifact)
       .then((saved) => {
-        if (saved) savedArtifactRef.current = updatedArtifact;
+        // A newer prop may have arrived while this save was in flight.
+        if (saved && savedArtifactRef.current === baseArtifact)
+          savedArtifactRef.current = updatedArtifact;
         setNotice(saved ? 'Artifact saved.' : 'Artifact could not be saved.');
         return saved;
       })
@@ -94,7 +108,7 @@ export function ArtifactCard({
   };
 
   const read = async () => {
-    const snapshot = { id: artifact.id, text: artifact.text };
+    const snapshot = { id: artifact.id, text: draftRef.current };
     setFrozenReadText(snapshot.text);
     try {
       await onRead(snapshot);

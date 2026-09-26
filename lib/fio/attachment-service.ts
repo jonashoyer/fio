@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
@@ -21,7 +22,7 @@ export class DurableImageAttachmentService implements AttachmentService {
     if (result.canceled || !result.assets[0]) return null;
 
     const asset = result.assets[0];
-    const id = crypto.randomUUID();
+    const id = Crypto.randomUUID();
     const mimeType = asset.mimeType ?? 'image/jpeg';
     let uri: string;
 
