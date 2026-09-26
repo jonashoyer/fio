@@ -23,9 +23,16 @@ import type { Artifact, Attachment, Thread } from '@/lib/fio/types';
 
 export default function ConversationScreen() {
   const router = useRouter();
-  const { active, error, persist, startNew } = useThreadStore();
+  const {
+    active,
+    error,
+    persist,
+    referenceContext,
+    saveReferenceContext,
+    setReferenceContext,
+    startNew,
+  } = useThreadStore();
   const [text, setText] = useState('');
-  const [contextText, setContextText] = useState('');
   const [showContext, setShowContext] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -55,15 +62,19 @@ export default function ConversationScreen() {
 
   const send = async () => {
     if (!text.trim()) return;
-    const turn = createUserTurn(text, contextText, attachments);
+    const turn = createUserTurn(text, attachments);
     const thread = active
       ? nextThread(active, {
           turns: [...active.turns, turn],
           attachments: [...active.attachments, ...attachments],
+          referenceContext: referenceContext.trim() ? referenceContext : undefined,
         })
-      : { ...createThread(turn), attachments };
+      : {
+          ...createThread(turn),
+          attachments,
+          referenceContext: referenceContext.trim() ? referenceContext : undefined,
+        };
     setText('');
-    setContextText('');
     setAttachments([]);
     setShowContext(false);
     setNotice(VOICE_UNAVAILABLE_MESSAGE);
@@ -76,13 +87,14 @@ export default function ConversationScreen() {
       return;
     }
     const artifact = createArtifact(text.trim());
-    const turn = createUserTurn(text, contextText, attachments);
+    const turn = createUserTurn(text, attachments);
     let thread: Thread;
     if (active) {
       thread = nextThread(active, {
         turns: [...active.turns, turn],
         artifacts: [...active.artifacts, artifact],
         attachments: [...active.attachments, ...attachments],
+        referenceContext: referenceContext.trim() ? referenceContext : undefined,
       });
     } else {
       thread = {
@@ -90,10 +102,10 @@ export default function ConversationScreen() {
         title: artifact.text.slice(0, 48),
         artifacts: [artifact],
         attachments,
+        referenceContext: referenceContext.trim() ? referenceContext : undefined,
       };
     }
     setText('');
-    setContextText('');
     setAttachments([]);
     setShowContext(false);
     const saved = await persist(thread);
@@ -112,9 +124,13 @@ export default function ConversationScreen() {
   const beginNew = () => {
     startNew();
     setText('');
-    setContextText('');
     setAttachments([]);
     setNotice(null);
+  };
+
+  const toggleContext = () => {
+    if (showContext) void saveReferenceContext(referenceContext);
+    setShowContext((value) => !value);
   };
 
   return (
@@ -216,7 +232,7 @@ export default function ConversationScreen() {
               <Typography className="text-foreground flex-1 text-sm leading-5">{notice}</Typography>
               <Button
                 isIconOnly
-                size="sm"
+                size="md"
                 variant="tertiary"
                 onPress={() => setNotice(null)}
                 accessibilityLabel="Dismiss notice"
@@ -233,10 +249,12 @@ export default function ConversationScreen() {
             <TextField>
               <Label>Reference context</Label>
               <TextArea
-                value={contextText}
-                onChangeText={setContextText}
+                value={referenceContext}
+                onChangeText={setReferenceContext}
+                onBlur={() => void saveReferenceContext(referenceContext)}
                 placeholder="Paste background text"
                 className="min-h-20"
+                accessibilityLabel="Reference context"
               />
             </TextField>
           ) : null}
@@ -257,7 +275,7 @@ export default function ConversationScreen() {
                   />
                   <Button
                     isIconOnly
-                    size="sm"
+                    size="md"
                     variant="secondary"
                     className="absolute -top-1 -right-1"
                     onPress={() => void removePendingAttachment(attachment)}
@@ -292,16 +310,16 @@ export default function ConversationScreen() {
             </Button>
           </View>
           <View className="flex-row flex-wrap gap-2">
-            <Button size="sm" variant="tertiary" onPress={() => setShowContext((value) => !value)}>
+            <Button size="md" variant="tertiary" onPress={toggleContext}>
               <Plus color={accent} size={18} />
               <Button.Label>Text context</Button.Label>
             </Button>
-            <Button size="sm" variant="tertiary" onPress={() => void pickImage()}>
+            <Button size="md" variant="tertiary" onPress={() => void pickImage()}>
               <ImagePlus color={accent} size={18} />
               <Button.Label>Photo of text</Button.Label>
             </Button>
             <Button
-              size="sm"
+              size="md"
               variant="secondary"
               onPress={() => void makeArtifact()}
               isDisabled={!text.trim()}

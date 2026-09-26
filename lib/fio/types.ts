@@ -38,6 +38,7 @@ export interface Artifact {
 export interface Thread {
   id: string;
   title: string;
+  referenceContext?: string;
   turns: Turn[];
   attachments: Attachment[];
   artifacts: Artifact[];
@@ -51,6 +52,12 @@ export interface ThreadRepository {
   get(id: string): Promise<Thread | null>;
   save(thread: Thread): Promise<void>;
   delete(id: string): Promise<void>;
+}
+
+export interface ReferenceContextDraftRepository {
+  get(): Promise<string>;
+  save(value: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface VoiceService {

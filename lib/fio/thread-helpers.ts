@@ -14,12 +14,11 @@ export function createThread(firstTurn: Turn): Thread {
   };
 }
 
-export function createUserTurn(text: string, contextText: string, attachments: Attachment[]): Turn {
+export function createUserTurn(text: string, attachments: Attachment[]): Turn {
   return {
     id: crypto.randomUUID(),
     role: 'user',
     text: text.trim(),
-    contextText: contextText.trim() || undefined,
     attachmentIds: attachments.map(({ id }) => id),
     createdAt: new Date().toISOString(),
   };
@@ -39,7 +38,9 @@ export function createArtifact(text: string, kind: ArtifactKind = 'notes'): Arti
 
 export function nextThread(
   thread: Thread,
-  patch: Partial<Pick<Thread, 'turns' | 'attachments' | 'artifacts' | 'title'>>,
+  patch: Partial<
+    Pick<Thread, 'turns' | 'attachments' | 'artifacts' | 'title' | 'referenceContext'>
+  >,
 ): Thread {
   return {
     ...thread,

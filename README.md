@@ -23,9 +23,9 @@ The main preview route is `/`. History is available at `/history`.
 
 - Every app launch opens a new, empty conversation without creating a history record.
 - A non-empty submitted turn creates one thread; later turns update that same thread.
-- User writing, optional separate context, and image reference metadata persist even when Fio cannot reply.
+- User writing, optional thread-level reference context, and image reference metadata persist even when Fio cannot reply. Reference context autosaves when editing finishes and is not copied into user turns or artifacts.
 - Supplied writing can be turned into a clearly labeled, editable manual artifact.
-- Artifact edits save automatically on blur or with **Save**. **Undo edit** restores the last saved artifact text.
+- Artifact edits save automatically when editing finishes. **Undo edit** restores the last saved artifact text.
 - **Copy** writes the selected artifact text exactly and shows success or failure.
 - History can refresh, reopen, and permanently delete saved threads.
 - Save and load errors are visible in the UI.
@@ -45,7 +45,7 @@ Fio domain models and replaceable boundaries live under `lib/fio/`:
 
 - `types.ts`: `Thread`, `Turn`, `Attachment`, and `Artifact`, plus repository, voice, clipboard, and durable attachment interfaces.
 - `local-thread-repository.ts`: isolated AsyncStorage adapter for same-device thread persistence.
-- `local-attachment-store.ts`: isolated app-document-directory image copy adapter.
+- `attachment-service.ts`: isolated native app-document-directory image copy and web-preview reference adapter.
 - `services.ts`: unconfigured voice adapter and exact clipboard adapter.
 - `thread-store.tsx`: UI-facing state and persistence orchestration.
 
@@ -55,7 +55,7 @@ Screens use these interfaces rather than cloud SDKs. Credentials must remain out
 
 Current storage is a foundation adapter, not a final backend decision. Data stays on the current app installation, does not sync across devices, is not shared between native and web, and can be lost when browser/site data or the app is removed. It has no account recovery, remote backup, multi-device conflict handling, encryption policy, retention policy, or server-side access controls.
 
-Before production, verify private no-login identity and recovery semantics, backend privacy and retention, durable attachment lifecycle, offline/error behavior, native Azure voice capture/playback, interruption handling, consent, and credentials kept on a trusted server boundary.
+Before production, verify private no-login backend behavior, backend privacy and retention, durable attachment lifecycle, offline/error behavior, native Azure voice capture/playback, interruption handling, consent, and credentials kept on a trusted server boundary. Cross-device synchronization and reinstall recovery are out of scope for this foundation.
 
 ## Backend portability
 

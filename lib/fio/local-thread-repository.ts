@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { Thread, ThreadRepository } from './types';
+import type { ReferenceContextDraftRepository, Thread, ThreadRepository } from './types';
 
 const STORAGE_KEY = '@fio/threads/v1';
+const REFERENCE_CONTEXT_DRAFT_KEY = '@fio/reference-context-draft/v1';
 
 type StoredThreads = Record<string, Thread>;
 
@@ -56,6 +57,7 @@ function isThread(value: unknown): value is Thread {
     isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.title === 'string' &&
+    (value.referenceContext === undefined || typeof value.referenceContext === 'string') &&
     Array.isArray(value.turns) &&
     value.turns.every(isTurn) &&
     Array.isArray(value.attachments) &&
@@ -129,3 +131,33 @@ export class LocalThreadRepository implements ThreadRepository {
 }
 
 export const threadRepository: ThreadRepository = new LocalThreadRepository();
+
+class LocalReferenceContextDraftRepository implements ReferenceContextDraftRepository {
+  private operation = Promise.resolve();
+
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.operation.then(work, work);
+    this.operation = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  get(): Promise<string> {
+    return this.enqueue(
+      async () => (await AsyncStorage.getItem(REFERENCE_CONTEXT_DRAFT_KEY)) ?? '',
+    );
+  }
+
+  save(value: string): Promise<void> {
+    return this.enqueue(() => AsyncStorage.setItem(REFERENCE_CONTEXT_DRAFT_KEY, value));
+  }
+
+  clear(): Promise<void> {
+    return this.enqueue(() => AsyncStorage.removeItem(REFERENCE_CONTEXT_DRAFT_KEY));
+  }
+}
+
+export const referenceContextDraftRepository: ReferenceContextDraftRepository =
+  new LocalReferenceContextDraftRepository();

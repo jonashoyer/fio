@@ -80,15 +80,7 @@ export function ArtifactCard({ artifact, onSave }: ArtifactCardProps) {
       </TextField>
       <View className="flex-row flex-wrap gap-2">
         <Button
-          size="sm"
-          variant="secondary"
-          onPress={() => void save()}
-          isDisabled={draft === artifact.text}
-        >
-          <Button.Label>Save</Button.Label>
-        </Button>
-        <Button
-          size="sm"
+          size="md"
           variant="tertiary"
           onPress={() => void undo()}
           isDisabled={!artifact.previous}
@@ -96,11 +88,11 @@ export function ArtifactCard({ artifact, onSave }: ArtifactCardProps) {
           <RotateCcw color={muted} size={18} />
           <Button.Label>Undo edit</Button.Label>
         </Button>
-        <Button size="sm" variant="tertiary" onPress={() => void copy()}>
+        <Button size="md" variant="tertiary" onPress={() => void copy()}>
           <Copy color={accent} size={18} />
           <Button.Label>Copy</Button.Label>
         </Button>
-        <Button size="sm" variant="tertiary" onPress={() => void read()}>
+        <Button size="md" variant="tertiary" onPress={() => void read()}>
           <Volume2 color={accent} size={18} />
           <Button.Label>Read aloud</Button.Label>
         </Button>

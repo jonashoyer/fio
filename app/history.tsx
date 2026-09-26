@@ -1,7 +1,7 @@
 import { ChevronLeft, Trash2 } from 'lucide-react-native';
 import { Button, Card, Typography, useThemeColor } from 'heroui-native';
 import { useEffect } from 'react';
-import { ActivityIndicator, Alert, FlatList, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { FioBird } from '@/components/FioBird';
@@ -17,6 +17,15 @@ export default function HistoryScreen() {
   }, [refresh]);
 
   const confirmDelete = (id: string, title: string) => {
+    if (Platform.OS === 'web') {
+      if (
+        globalThis.confirm(`Delete “${title}”? This conversation will be removed from this device.`)
+      ) {
+        void remove(id);
+      }
+      return;
+    }
+
     Alert.alert('Delete conversation?', `“${title}” will be removed from this device.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => void remove(id) },
@@ -58,7 +67,7 @@ export default function HistoryScreen() {
           renderItem={({ item }) => (
             <Card className="border-border bg-background flex-row items-center gap-3 border p-4">
               <Button
-                className="h-auto flex-1 items-start py-2"
+                className="min-h-12 flex-1 items-start py-2"
                 variant="tertiary"
                 onPress={() => void reopen(item.id)}
               >
